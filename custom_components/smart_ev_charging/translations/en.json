@@ -1,0 +1,27 @@
+{
+  "title": "Smart EV Charging",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Select data sources",
+        "description": "Choose entities from your vehicle (including the official Škoda integration), electricity price integration, and charger.",
+        "data": {"soc_entity": "Vehicle state of charge", "plugged_entity": "Vehicle connected (optional)", "price_entity": "Electricity price", "power_entity": "Actual charging power (optional)", "charger_type": "Charger type"},
+        "data_description": {"plugged_entity": "If omitted, the Zaptec operating mode is used.", "price_entity": "Supports Nord Pool today/tomorrow and raw price attributes, or a generic numeric price sensor.", "power_entity": "Values in W and kW are accepted."}
+      },
+      "charger": {
+        "title": "Configure charging",
+        "data": {"charger_mode": "Zaptec operating mode", "authorize_button": "Zaptec authorize charging button", "resume_button": "Zaptec resume charging button", "stop_button": "Zaptec stop charging button", "charger_switch": "Charging switch", "battery_capacity": "Usable battery capacity (kWh)", "charge_power": "Fallback charging power (kW)", "efficiency": "Charging efficiency", "target_soc": "Default target SOC (%)", "minimum_soc": "Immediate-charge minimum SOC (%)", "departure": "Ready by"}
+      }
+    },
+    "abort": {"already_configured": "This vehicle and charger combination is already configured."}
+  },
+  "options": {"step": {"init": {"title": "Charging and tariff settings", "data": {"battery_capacity": "Usable battery capacity (kWh)", "charge_power": "Fallback charging power (kW)", "efficiency": "Charging efficiency", "target_soc": "Default target SOC (%)", "minimum_soc": "Immediate-charge minimum SOC (%)", "departure": "Ready by", "price_markup": "Supplier markup per kWh", "day_grid_fee": "Day grid fee per kWh", "night_grid_fee": "Night grid fee per kWh", "night_start": "Night tariff starts", "night_end": "Night tariff ends", "fixed_energy_price": "Fixed energy price (-1 disables)", "support_threshold": "Support threshold per kWh", "support_rate": "Support rate (0–1)"}, "data_description": {"price_markup": "Use the same currency and per-kWh unit as the price entity.", "day_grid_fee": "Added during the day.", "night_grid_fee": "Added during the configured night period.", "fixed_energy_price": "Use for a fixed-price scheme; -1 keeps spot pricing.", "support_threshold": "Threshold above which support applies.", "support_rate": "Fraction above the threshold that is compensated."}}}},
+  "selector": {"charger_type": {"options": {"zaptec": "Zaptec with native authentication", "generic": "Generic charging switch"}}},
+  "entity": {
+    "sensor": {"required_energy": {"name": "Required energy"}, "required_time": {"name": "Required charging time"}, "next_start": {"name": "Next charging start"}, "next_end": {"name": "Next charging end"}, "estimated_cost": {"name": "Estimated cost"}, "status": {"name": "Status", "state": {"error": "Error", "disabled": "Disabled", "not_connected": "Not connected", "charging": "Charging", "ready": "Ready", "deadline_unreachable": "Deadline unreachable"}}},
+    "binary_sensor": {"should_charge": {"name": "Should charge"}},
+    "switch": {"optimization": {"name": "Optimization"}, "charge_now": {"name": "Charge now"}, "trip_mode": {"name": "Trip mode"}},
+    "number": {"target_soc": {"name": "Target SOC"}, "minimum_soc": {"name": "Minimum SOC"}},
+    "time": {"departure": {"name": "Departure"}}, "button": {"refresh_plan": {"name": "Refresh plan"}}, "calendar": {"schedule": {"name": "Charging schedule"}}
+  }
+}

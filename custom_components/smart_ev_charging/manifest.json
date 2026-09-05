@@ -1,0 +1,11 @@
+{
+  "domain": "smart_ev_charging",
+  "name": "Smart EV Charging",
+  "codeowners": ["@RonRadtke"],
+  "config_flow": true,
+  "documentation": "https://github.com/RonRadtke/home-assistant-smart-ev-charging",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/RonRadtke/home-assistant-smart-ev-charging/issues",
+  "version": "0.1.0"
+}

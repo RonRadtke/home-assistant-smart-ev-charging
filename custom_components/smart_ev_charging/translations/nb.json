@@ -1,0 +1,10 @@
+{
+  "title": "Smart elbillading",
+  "entity": {
+    "sensor": {"required_energy": {"name": "Nødvendig energi"}, "required_time": {"name": "Nødvendig ladetid"}, "next_start": {"name": "Neste ladestart"}, "next_end": {"name": "Neste ladeslutt"}, "estimated_cost": {"name": "Estimert kostnad"}, "status": {"name": "Status"}},
+    "binary_sensor": {"should_charge": {"name": "Bør lade"}},
+    "switch": {"optimization": {"name": "Optimalisering"}, "charge_now": {"name": "Lad nå"}, "trip_mode": {"name": "Turmodus"}},
+    "number": {"target_soc": {"name": "Mål-SOC"}, "minimum_soc": {"name": "Minimum SOC"}},
+    "time": {"departure": {"name": "Avreise"}}, "button": {"refresh_plan": {"name": "Oppdater ladeplan"}}, "calendar": {"schedule": {"name": "Ladeplan"}}
+  }
+}

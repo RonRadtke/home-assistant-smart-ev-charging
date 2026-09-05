@@ -1,0 +1,27 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install homeassistant 'pytest<9' pytest-cov ruff
+      - run: ruff check custom_components tests
+      - run: pytest
+      - name: Validate Home Assistant imports
+        run: python -c "import sys; sys.path.insert(0, 'custom_components'); import smart_ev_charging.config_flow, smart_ev_charging.coordinator, smart_ev_charging.sensor"
+
+  hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
