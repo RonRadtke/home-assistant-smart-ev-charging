@@ -45,7 +45,7 @@ def entry(hass):
         options={}, source="user", unique_id="charger",
         discovery_keys=MappingProxyType({}), subentries_data=None,
     )
-    hass.config_entries._entries.async_add(entry)
+    hass.config_entries._entries[entry.entry_id] = entry
     return entry
 
 

@@ -1,5 +1,8 @@
 """Exercise both setup paths and the options form with Home Assistant entries."""
 
+import pytest
+from homeassistant.data_entry_flow import AbortFlow
+
 from custom_components.smart_ev_charging.config_flow import (
     SmartEVChargingConfigFlow,
     SmartEVChargingOptionsFlow,
@@ -9,6 +12,8 @@ from custom_components.smart_ev_charging.config_flow import (
 async def test_generic_setup(hass, entry):
     flow = SmartEVChargingConfigFlow()
     flow.hass = hass
+    flow.handler = "smart_ev_charging"
+    flow.context["source"] = "user"
     result = await flow.async_step_user({
         "soc_entity": "sensor.soc", "price_entity": "sensor.price", "charger_type": "generic",
     })
@@ -21,11 +26,16 @@ async def test_generic_setup(hass, entry):
     assert result["type"] == "create_entry"
     assert result["data"]["charger_switch"] == "switch.other"
     assert "charger_mode" not in result["data"]
+    hass.config_entries.async_update_entry(entry, unique_id="switch.other:sensor.soc")
+    with pytest.raises(AbortFlow, match="already_configured"):
+        await flow.async_step_charger(data)
 
 
 async def test_zaptec_form_requires_all_control_buttons(hass):
     flow = SmartEVChargingConfigFlow()
     flow.hass = hass
+    flow.handler = "smart_ev_charging"
+    flow.context["source"] = "user"
     result = await flow.async_step_user({
         "soc_entity": "sensor.soc", "price_entity": "sensor.price", "charger_type": "zaptec",
     })
