@@ -13,7 +13,7 @@
           "charger_type": "Charger type"
         },
         "data_description": {
-          "plugged_entity": "If omitted, the Zaptec operating mode is used.",
+          "plugged_entity": "If omitted, Zaptec operating mode is used. A generic switch assumes the vehicle is connected; select a connection sensor to detect unplugging.",
           "price_entity": "Supports Nord Pool today/tomorrow and raw price attributes, or a generic numeric price sensor.",
           "power_entity": "Used to learn the real Enyaq charging rate; values in W and kW are accepted."
         }
@@ -35,7 +35,9 @@
         }
       }
     },
-    "abort": {"already_configured": "This vehicle and charger combination is already configured."}
+    "abort": {
+      "already_configured": "This vehicle and charger combination is already configured."
+    }
   },
   "options": {
     "step": {
@@ -68,28 +70,84 @@
       }
     }
   },
-  "selector": {"charger_type": {"options": {"zaptec": "Zaptec with native authentication", "generic": "Generic charging switch"}}},
+  "selector": {
+    "charger_type": {
+      "options": {
+        "zaptec": "Zaptec with native authentication",
+        "generic": "Generic charging switch"
+      }
+    }
+  },
   "entity": {
     "sensor": {
-      "required_energy": {"name": "Required energy"},
-      "required_time": {"name": "Required charging time"},
-      "next_start": {"name": "Next charging start"},
-      "next_end": {"name": "Next charging end"},
-      "estimated_cost": {"name": "Estimated cost"},
-      "status": {"name": "Status", "state": {"error": "Error", "disabled": "Disabled", "not_connected": "Not connected", "charging": "Charging", "ready": "Ready", "deadline_unreachable": "Deadline unreachable"}}
+      "required_energy": {
+        "name": "Required energy"
+      },
+      "required_time": {
+        "name": "Required charging time"
+      },
+      "next_start": {
+        "name": "Next charging start"
+      },
+      "next_end": {
+        "name": "Next charging end"
+      },
+      "estimated_cost": {
+        "name": "Estimated cost"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "error": "Error",
+          "disabled": "Disabled",
+          "not_connected": "Not connected",
+          "charging": "Charging",
+          "ready": "Ready",
+          "deadline_unreachable": "Deadline unreachable",
+          "missing_soc": "Missing state of charge",
+          "starting": "Starting charging",
+          "scheduled": "Scheduled"
+        }
+      }
     },
-    "binary_sensor": {"should_charge": {"name": "Should charge"}},
+    "binary_sensor": {
+      "should_charge": {
+        "name": "Should charge"
+      }
+    },
     "switch": {
-      "optimization": {"name": "Optimization"},
-      "charge_now": {"name": "Charge now"},
-      "trip_mode": {"name": "Trip mode"}
+      "optimization": {
+        "name": "Optimization"
+      },
+      "charge_now": {
+        "name": "Charge now"
+      },
+      "trip_mode": {
+        "name": "Trip mode"
+      }
     },
     "number": {
-      "target_soc": {"name": "Target SOC"},
-      "minimum_soc": {"name": "Minimum SOC"}
+      "target_soc": {
+        "name": "Target SOC"
+      },
+      "minimum_soc": {
+        "name": "Minimum SOC"
+      }
     },
-    "time": {"departure": {"name": "Departure"}},
-    "button": {"refresh_plan": {"name": "Refresh plan"}},
-    "calendar": {"schedule": {"name": "Charging schedule"}}
+    "time": {
+      "departure": {
+        "name": "Departure"
+      }
+    },
+    "button": {
+      "refresh_plan": {
+        "name": "Refresh plan"
+      }
+    },
+    "calendar": {
+      "schedule": {
+        "name": "Charging schedule"
+      }
+    }
   }
 }

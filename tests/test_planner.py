@@ -1,7 +1,10 @@
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
-from smart_ev_charging.models import PriceSlot
-from smart_ev_charging.planner import build_plan, merge_adjacent
+import pytest
+
+from custom_components.smart_ev_charging.models import PriceSlot
+from custom_components.smart_ev_charging.planner import build_plan, merge_adjacent
 
 UTC = UTC
 NOW = datetime(2026, 9, 4, 18, tzinfo=UTC)
@@ -88,3 +91,55 @@ def test_no_known_prices_is_incomplete():
 
 def test_merge_empty_schedule():
     assert merge_adjacent([]) == ()
+
+
+def test_partial_urgent_interval_is_reused():
+    result = plan(soc=29, target=31, minimum=30, prices=(5,), deadline_hours=1)
+    assert result.complete
+    assert result.deliverable_kwh == pytest.approx(2)
+    assert result.slots[0].hours == pytest.approx(0.2)
+
+
+def test_partial_base_and_trip_share_an_interval():
+    result = plan(soc=79, target=81, prices=(5,), deadline_hours=1)
+    assert result.complete
+    assert result.deliverable_kwh == pytest.approx(2)
+    assert result.slots[-1].end == NOW + timedelta(hours=1)
+
+
+def test_trip_reserves_latest_energy_before_cheap_base():
+    result = plan(soc=75, target=95, prices=(5, 1), deadline_hours=2)
+    assert result.complete
+    assert sum(slot.hours for slot in result.slots) == pytest.approx(2)
+
+
+@pytest.mark.parametrize(("month", "day", "hours"), [(3, 29, 3), (10, 25, 5)])
+def test_dst_uses_elapsed_hours(month, day, hours):
+    zone = ZoneInfo("Europe/Oslo")
+    start = datetime(2026, month, day, 0, tzinfo=zone)
+    end = datetime(2026, month, day, 4, tzinfo=zone)
+    slot = PriceSlot(start, end, 1)
+    assert slot.hours == hours
+    result = build_plan(
+        now=start, deadline=end, soc=0, target_soc=hours * 10, minimum_soc=0,
+        battery_capacity_kwh=100, charge_power_kw=10, efficiency=1, prices=[slot],
+    )
+    assert result.complete
+    assert result.deliverable_kwh == pytest.approx(hours * 10)
+
+
+def test_overlapping_intervals_do_not_double_count_capacity():
+    result = build_plan(
+        now=NOW, deadline=NOW + timedelta(hours=1), soc=0, target_soc=20, minimum_soc=0,
+        battery_capacity_kwh=100, charge_power_kw=10, efficiency=1,
+        prices=[PriceSlot(NOW, NOW + timedelta(hours=1), 1)] * 2,
+    )
+    assert not result.complete
+    assert result.deliverable_kwh == 10
+
+
+@pytest.mark.parametrize("soc", [float("nan"), float("inf"), -1, 101])
+def test_invalid_soc_is_incomplete(soc):
+    result = plan(soc=soc)
+    assert not result.complete
+    assert not result.slots

@@ -56,19 +56,12 @@ DESCRIPTIONS = (
     SmartSensorDescription(
         key="status",
         translation_key="status",
-        value_fn=lambda c: (
-            "error"
-            if c.last_error
-            else (
-                "disabled"
-                if not c.enabled
-                else (
-                    "not_connected"
-                    if not c.plugged
-                    else ("charging" if c.should_charge else ("ready" if c.plan.complete else "deadline_unreachable"))
-                )
-            )
-        ),
+        device_class=SensorDeviceClass.ENUM,
+        options=[
+            "error", "disabled", "not_connected", "missing_soc", "starting",
+            "charging", "scheduled", "ready", "deadline_unreachable",
+        ],
+        value_fn=lambda c: c.status,
     ),
 )
 
