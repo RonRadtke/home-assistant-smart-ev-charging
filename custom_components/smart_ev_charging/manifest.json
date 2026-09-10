@@ -1,6 +1,7 @@
 {
   "domain": "smart_ev_charging",
   "name": "Smart EV Charging",
+  "after_dependencies": ["nordpool"],
   "codeowners": ["@RonRadtke"],
   "config_flow": true,
   "documentation": "https://github.com/RonRadtke/home-assistant-smart-ev-charging",

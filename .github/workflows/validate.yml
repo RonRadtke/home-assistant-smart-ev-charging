@@ -34,6 +34,7 @@ jobs:
           fi
       - run: ruff check custom_components tests
       - run: pytest
+        if: success() || failure()
 
   hassfest:
     runs-on: ubuntu-latest

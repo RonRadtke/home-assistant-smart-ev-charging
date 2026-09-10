@@ -202,25 +202,29 @@ async def test_native_nordpool_converts_prices_and_keeps_explicit_ends(coordinat
     del coordinator._async_get_prices
     hass.states.async_set("sensor.price", "1", {"unit_of_measurement": "NOK/kWh"})
     response = {"NO2": [{"start": NOW.isoformat(), "end": (NOW + timedelta(minutes=15)).isoformat(), "price": 1000}]}
-    with patch("custom_components.smart_ev_charging.coordinator.er.async_get", return_value=registry):
-        with patch.object(hass.services, "async_call", new_callable=AsyncMock, return_value=response) as call:
-            prices = await coordinator._async_get_prices(NOW)
-            assert prices == [PriceSlot(NOW, NOW + timedelta(minutes=15), 1)]
-            assert call.await_count == 2
-            assert call.await_args.args[2]["areas"] == ["NO2"]
-            await coordinator._async_get_prices(NOW + timedelta(minutes=1))
-            assert call.await_count == 2
+    with (
+        patch("custom_components.smart_ev_charging.coordinator.er.async_get", return_value=registry),
+        patch.object(hass.services, "async_call", new_callable=AsyncMock, return_value=response) as call,
+    ):
+        prices = await coordinator._async_get_prices(NOW)
+        assert prices == [PriceSlot(NOW, NOW + timedelta(minutes=15), 1)]
+        assert call.await_count == 2
+        assert call.await_args.args[2]["areas"] == ["NO2"]
+        await coordinator._async_get_prices(NOW + timedelta(minutes=1))
+        assert call.await_count == 2
 
 
 async def test_native_price_failures_are_throttled_without_numeric_fallback(coordinator, hass):
     registry = Mock()
     registry.async_get.return_value = Mock(platform="nordpool", unique_id="NO2-current_price", config_entry_id="np")
     del coordinator._async_get_prices
-    with patch("custom_components.smart_ev_charging.coordinator.er.async_get", return_value=registry):
-        with patch.object(hass.services, "async_call", side_effect=HomeAssistantError("offline")) as call:
-            assert await coordinator._async_get_prices(NOW) == []
-            assert await coordinator._async_get_prices(NOW + timedelta(minutes=1)) == []
-            assert call.await_count == 2
+    with (
+        patch("custom_components.smart_ev_charging.coordinator.er.async_get", return_value=registry),
+        patch.object(hass.services, "async_call", side_effect=HomeAssistantError("offline")) as call,
+    ):
+        assert await coordinator._async_get_prices(NOW) == []
+        assert await coordinator._async_get_prices(NOW + timedelta(minutes=1)) == []
+        assert call.await_count == 2
 
 
 async def test_service_registry_receives_real_switch_command(coordinator, hass):

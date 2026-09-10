@@ -2,6 +2,7 @@ from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
+
 from custom_components.smart_ev_charging.models import PriceSlot
 from custom_components.smart_ev_charging.pricing import add_tariffs, parse_price_slots
 

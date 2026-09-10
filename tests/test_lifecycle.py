@@ -29,7 +29,9 @@ async def test_setup_all_platforms_diagnostics_and_unload(hass, entry):
     assert entry.runtime_data.coordinator._listeners
     diagnostics = await async_get_config_entry_diagnostics(hass, entry)
     assert diagnostics["runtime"]["plan_complete"]
-    with patch.object(hass.config_entries, "async_unload_platforms", new_callable=AsyncMock, return_value=True) as unload:
+    with patch.object(
+        hass.config_entries, "async_unload_platforms", new_callable=AsyncMock, return_value=True
+    ) as unload:
         assert await async_unload_entry(hass, entry)
         unload.assert_awaited_once_with(entry, PLATFORMS)
     assert not entry.runtime_data.coordinator._listeners
@@ -37,9 +39,11 @@ async def test_setup_all_platforms_diagnostics_and_unload(hass, entry):
 
 
 async def test_failed_platform_setup_cleans_coordinator_listeners(hass, entry):
-    with patch.object(hass.config_entries, "async_forward_entry_setups", side_effect=RuntimeError("setup failed")):
-        with pytest.raises(RuntimeError, match="setup failed"):
-            await async_setup_entry(hass, entry)
+    with (
+        patch.object(hass.config_entries, "async_forward_entry_setups", side_effect=RuntimeError("setup failed")),
+        pytest.raises(RuntimeError, match="setup failed"),
+    ):
+        await async_setup_entry(hass, entry)
     assert not entry.runtime_data.coordinator._listeners
     assert entry.runtime_data.coordinator._stopped
 

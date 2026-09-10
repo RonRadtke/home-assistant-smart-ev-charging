@@ -6,7 +6,7 @@ from custom_components.smart_ev_charging.config_flow import (
 )
 
 
-async def test_generic_setup_and_duplicate_abort(hass, entry):
+async def test_generic_setup(hass, entry):
     flow = SmartEVChargingConfigFlow()
     flow.hass = hass
     result = await flow.async_step_user({
