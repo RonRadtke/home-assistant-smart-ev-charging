@@ -274,3 +274,15 @@ async def test_unload_waits_for_running_command_and_cancels_queued_refresh(coord
         release.set()
         await asyncio.gather(first, stop, queued)
     assert call.await_count == 1
+
+
+async def test_fixed_price_does_not_depend_on_a_spot_forecast(coordinator, hass):
+    hass.config_entries.async_update_entry(coordinator.entry, options={"fixed_energy_price": 0.5})
+    hass.states.async_set("sensor.price", "unavailable")
+    coordinator._async_get_prices.return_value = []
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
+        await coordinator.async_refresh(NOW)
+    coordinator._async_get_prices.assert_not_awaited()
+    assert coordinator.plan.complete
+    assert coordinator.plan.estimated_cost == 5
+    call.assert_awaited_once_with("switch", "turn_on", {"entity_id": "switch.charger"}, blocking=True)

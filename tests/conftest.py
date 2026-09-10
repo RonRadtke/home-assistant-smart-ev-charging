@@ -6,6 +6,7 @@ from types import MappingProxyType
 from unittest.mock import AsyncMock
 
 import pytest
+from homeassistant import loader
 from homeassistant.bootstrap import async_load_base_functionality
 from homeassistant.config_entries import ConfigEntries, ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -21,6 +22,7 @@ NOW = datetime(2026, 9, 10, 16, tzinfo=UTC)
 @pytest.fixture
 async def hass(tmp_path) -> AsyncGenerator[HomeAssistant]:
     instance = HomeAssistant(str(tmp_path))
+    loader.async_setup(instance)
     instance.config_entries = ConfigEntries(instance, {})
     await instance.config.async_set_time_zone("Europe/Oslo")
     assert await async_load_base_functionality(instance)

@@ -134,6 +134,8 @@ If only a current numeric price exists on a generic sensor, it is assumed unchan
 
 Intervals are calculated in UTC for correct elapsed time across daylight-saving changes. Grid tariff boundaries use Home Assistant's configured local timezone and split price intervals where needed. A nonexistent spring-forward departure time moves forward by the DST gap; an ambiguous autumn departure uses its first occurrence.
 
+With a configured fixed energy price, the optimizer can calculate the full tariff schedule without fetching spot prices and continues planning during a spot-price outage.
+
 Effective price is:
 
 ```text

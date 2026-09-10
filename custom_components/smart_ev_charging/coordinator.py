@@ -215,7 +215,11 @@ class SmartEVChargingCoordinator:
 
     async def _async_refresh_locked(self, now: datetime | None = None) -> None:
         now = dt_util.as_local(now or dt_util.now())
-        prices = await self._async_get_prices(now)
+        fixed_price = float(self.option(CONF_FIXED_PRICE))
+        prices = (
+            parse_price_slots({}, now, fixed_price)
+            if fixed_price >= 0 else await self._async_get_prices(now)
+        )
         # Network requests can yield while sensors change. Sample control inputs
         # afterwards so a queued unplug/SOC update cannot start a stale plan.
         self.soc = self._float_state(self.option(CONF_SOC_ENTITY))
