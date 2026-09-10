@@ -15,7 +15,7 @@ from .conftest import NOW
 
 
 async def test_generic_without_connection_sensor_charges(coordinator, hass):
-    with patch.object(hass.services, "async_call", new_callable=AsyncMock) as call:
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
         await coordinator.async_refresh(NOW)
     assert coordinator.plugged
     call.assert_awaited_once_with("switch", "turn_on", {"entity_id": "switch.charger"}, blocking=True)
@@ -24,7 +24,7 @@ async def test_generic_without_connection_sensor_charges(coordinator, hass):
 async def test_startup_stops_a_charger_when_target_is_reached(coordinator, hass):
     hass.states.async_set("sensor.soc", "80")
     hass.states.async_set("switch.charger", "on")
-    with patch.object(hass.services, "async_call", new_callable=AsyncMock) as call:
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
         await coordinator.async_refresh(NOW)
     call.assert_awaited_once_with("switch", "turn_off", {"entity_id": "switch.charger"}, blocking=True)
 
@@ -33,7 +33,7 @@ async def test_external_start_is_reconciled_even_when_desired_stays_off(coordina
     hass.states.async_set("sensor.soc", "80")
     await coordinator.async_refresh(NOW)
     hass.states.async_set("switch.charger", "on")
-    with patch.object(hass.services, "async_call", new_callable=AsyncMock) as call:
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
         await coordinator.async_refresh(NOW + timedelta(seconds=10))
     assert call.await_args.args[:2] == ("switch", "turn_off")
 
@@ -42,7 +42,7 @@ async def test_external_start_is_reconciled_even_when_desired_stays_off(coordina
 async def test_missing_or_invalid_soc_stops_optimized_charging(coordinator, hass, state):
     hass.states.async_set("sensor.soc", state)
     hass.states.async_set("switch.charger", "on")
-    with patch.object(hass.services, "async_call", new_callable=AsyncMock) as call:
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
         await coordinator.async_refresh(NOW)
     assert coordinator.soc is None
     assert not coordinator.plan.complete
@@ -52,7 +52,7 @@ async def test_missing_or_invalid_soc_stops_optimized_charging(coordinator, hass
 async def test_disabled_does_not_control_charger(coordinator, hass):
     coordinator.enabled = False
     hass.states.async_set("switch.charger", "on")
-    with patch.object(hass.services, "async_call", new_callable=AsyncMock) as call:
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
         await coordinator.async_refresh(NOW)
     call.assert_not_awaited()
 
@@ -60,7 +60,7 @@ async def test_disabled_does_not_control_charger(coordinator, hass):
 async def test_failure_cooldown_and_recovery_update_status(coordinator, hass):
     listener = Mock()
     coordinator.async_add_listener(listener)
-    with patch.object(hass.services, "async_call", new_callable=AsyncMock) as call:
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
         call.side_effect = HomeAssistantError("offline")
         await coordinator.async_refresh(NOW)
         await coordinator.async_refresh(NOW + timedelta(seconds=10))
@@ -80,7 +80,7 @@ async def test_concurrent_refreshes_send_one_command(coordinator, hass):
         entered.set()
         await release.wait()
 
-    with patch.object(hass.services, "async_call", side_effect=slow_call) as call:
+    with patch.object(type(hass.services), "async_call", side_effect=slow_call) as call:
         first = asyncio.create_task(coordinator.async_refresh(NOW))
         await entered.wait()
         second = asyncio.create_task(coordinator.async_refresh(NOW))
@@ -113,7 +113,7 @@ def zaptec(coordinator, hass):
 
 
 async def test_zaptec_resume_then_authorize_on_state_change(zaptec, hass):
-    with patch.object(hass.services, "async_call", new_callable=AsyncMock) as call:
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
         await zaptec.async_refresh(NOW)
         assert call.await_args.args[2] == {"entity_id": "button.resume"}
         hass.states.async_set("sensor.mode", "connected_requesting")
@@ -124,7 +124,7 @@ async def test_zaptec_resume_then_authorize_on_state_change(zaptec, hass):
 
 @pytest.mark.parametrize("cancel", ["disabled", "unplugged", "target_reached"])
 async def test_zaptec_cancels_authorization_after_resume(zaptec, hass, cancel):
-    with patch.object(hass.services, "async_call", new_callable=AsyncMock) as call:
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
         await zaptec.async_refresh(NOW)
         hass.states.async_set("sensor.mode", "connected_requesting")
         if cancel == "disabled":
@@ -140,7 +140,7 @@ async def test_zaptec_cancels_authorization_after_resume(zaptec, hass, cancel):
 async def test_zaptec_stops_existing_session(zaptec, hass):
     hass.states.async_set("sensor.soc", "80")
     hass.states.async_set("sensor.mode", "connected_charging")
-    with patch.object(hass.services, "async_call", new_callable=AsyncMock) as call:
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
         await zaptec.async_refresh(NOW)
         assert call.await_args.args[2] == {"entity_id": "button.stop"}
 
@@ -191,7 +191,7 @@ async def test_charge_now_resets_if_restarted_unplugged(coordinator, hass):
 
 async def test_stopped_coordinator_ignores_queued_refresh(coordinator, hass):
     await coordinator.async_stop()
-    with patch.object(hass.services, "async_call", new_callable=AsyncMock) as call:
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
         await coordinator.async_refresh(NOW)
     call.assert_not_awaited()
 
@@ -204,7 +204,7 @@ async def test_native_nordpool_converts_prices_and_keeps_explicit_ends(coordinat
     response = {"NO2": [{"start": NOW.isoformat(), "end": (NOW + timedelta(minutes=15)).isoformat(), "price": 1000}]}
     with (
         patch("custom_components.smart_ev_charging.coordinator.er.async_get", return_value=registry),
-        patch.object(hass.services, "async_call", new_callable=AsyncMock, return_value=response) as call,
+        patch.object(type(hass.services), "async_call", new_callable=AsyncMock, return_value=response) as call,
     ):
         prices = await coordinator._async_get_prices(NOW)
         assert prices == [PriceSlot(NOW, NOW + timedelta(minutes=15), 1)]
@@ -220,7 +220,7 @@ async def test_native_price_failures_are_throttled_without_numeric_fallback(coor
     del coordinator._async_get_prices
     with (
         patch("custom_components.smart_ev_charging.coordinator.er.async_get", return_value=registry),
-        patch.object(hass.services, "async_call", side_effect=HomeAssistantError("offline")) as call,
+        patch.object(type(hass.services), "async_call", side_effect=HomeAssistantError("offline")) as call,
     ):
         assert await coordinator._async_get_prices(NOW) == []
         assert await coordinator._async_get_prices(NOW + timedelta(minutes=1)) == []
@@ -251,7 +251,7 @@ async def test_unplug_during_price_request_does_not_start_charging(coordinator, 
         return [PriceSlot(NOW, NOW + timedelta(hours=1), 1)]
 
     coordinator._async_get_prices.side_effect = prices
-    with patch.object(hass.services, "async_call", new_callable=AsyncMock) as call:
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
         await coordinator.async_refresh(NOW)
     call.assert_not_awaited()
     assert not coordinator.should_charge
@@ -264,7 +264,7 @@ async def test_unload_waits_for_running_command_and_cancels_queued_refresh(coord
         entered.set()
         await release.wait()
 
-    with patch.object(hass.services, "async_call", side_effect=slow_call) as call:
+    with patch.object(type(hass.services), "async_call", side_effect=slow_call) as call:
         first = asyncio.create_task(coordinator.async_refresh(NOW))
         await entered.wait()
         stop = asyncio.create_task(coordinator.async_stop())

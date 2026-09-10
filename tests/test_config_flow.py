@@ -13,7 +13,7 @@ async def test_generic_setup(hass, entry):
     flow = SmartEVChargingConfigFlow()
     flow.hass = hass
     flow.handler = "smart_ev_charging"
-    flow.context["source"] = "user"
+    flow.context = {"source": "user"}
     result = await flow.async_step_user({
         "soc_entity": "sensor.soc", "price_entity": "sensor.price", "charger_type": "generic",
     })
@@ -35,7 +35,7 @@ async def test_zaptec_form_requires_all_control_buttons(hass):
     flow = SmartEVChargingConfigFlow()
     flow.hass = hass
     flow.handler = "smart_ev_charging"
-    flow.context["source"] = "user"
+    flow.context = {"source": "user"}
     result = await flow.async_step_user({
         "soc_entity": "sensor.soc", "price_entity": "sensor.price", "charger_type": "zaptec",
     })
