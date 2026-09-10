@@ -9,6 +9,7 @@ from .coordinator import SmartEVChargingCoordinator
 
 class SmartEVChargingEntity(Entity):
     _attr_has_entity_name = True
+    _attr_should_poll = False
 
     def __init__(self, coordinator: SmartEVChargingCoordinator, key: str) -> None:
         self.coordinator = coordinator

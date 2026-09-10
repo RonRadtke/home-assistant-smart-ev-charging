@@ -7,5 +7,5 @@
   "integration_type": "service",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/RonRadtke/home-assistant-smart-ev-charging/issues",
-  "version": "0.1.0"
+  "version": "0.1.1"
 }

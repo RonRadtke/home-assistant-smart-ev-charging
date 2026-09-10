@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from math import isfinite
 
 from .models import ChargePlan, PriceSlot
 
@@ -37,16 +38,30 @@ def build_plan(
     prices: list[PriceSlot],
 ) -> ChargePlan:
     """Choose the cheapest feasible slots, with immediate low-SOC recovery."""
+    now, deadline = now.astimezone(UTC), deadline.astimezone(UTC)
+    if not all(isfinite(value) for value in (
+        soc, target_soc, minimum_soc, battery_capacity_kwh, charge_power_kw, efficiency
+    )) or not (0 <= soc <= 100 and battery_capacity_kwh > 0 and charge_power_kw > 0 and 0 < efficiency <= 1):
+        return ChargePlan(complete=False)
     required_kwh = max(0.0, target_soc - soc) / 100 * battery_capacity_kwh
-    if required_kwh <= 0 or charge_power_kw <= 0 or deadline <= now:
+    if required_kwh <= 0:
         return ChargePlan(required_kwh=required_kwh)
+    if deadline <= now:
+        return ChargePlan(required_kwh=required_kwh, complete=False)
 
     candidates = [
         PriceSlot(max(slot.start, now), min(slot.end, deadline), slot.price)
         for slot in prices
-        if slot.end > now and slot.start < deadline
+        if slot.end > now and slot.start < deadline and isfinite(slot.price)
     ]
     candidates = [slot for slot in candidates if slot.end > slot.start]
+    # Never count overlapping input intervals as simultaneous charging capacity.
+    non_overlapping = []
+    for slot in sorted(candidates, key=lambda item: (item.start, item.end)):
+        start = max(slot.start, non_overlapping[-1].end) if non_overlapping else slot.start
+        if start < slot.end:
+            non_overlapping.append(PriceSlot(start, slot.end, slot.price))
+    candidates = non_overlapping
     if not candidates:
         return ChargePlan(required_kwh=required_kwh, complete=False)
 
@@ -54,7 +69,6 @@ def build_plan(
     urgent_battery_kwh = max(0.0, min(minimum_soc, target_soc) - soc) / 100 * battery_capacity_kwh
     urgent_input_kwh = urgent_battery_kwh / max(0.01, efficiency)
     selected: list[PriceSlot] = []
-    used: set[int] = set()
     delivered_input = 0.0
 
     def take(index: int, wanted_kwh: float, *, from_end: bool = False) -> float:
@@ -71,7 +85,10 @@ def build_plan(
             else PriceSlot(slot.start, slot.start + duration, slot.price)
         )
         selected.append(chosen)
-        used.add(index)
+        candidates[index] = (
+            PriceSlot(slot.start, chosen.start, slot.price)
+            if from_end else PriceSlot(chosen.end, slot.end, slot.price)
+        )
         return amount
 
     # When SOC is low, reserve the earliest intervals first for resilience.
@@ -80,24 +97,21 @@ def build_plan(
         if delivered_input + 1e-9 >= urgent_input_kwh:
             break
 
-    # Up to 80%, cost wins. Above 80%, use the latest possible slots so the
-    # battery does not sit full for longer than necessary.
+    # Reserve the top-up last in time, then buy the remaining base energy cheaply.
+    # A partial reservation leaves the rest of its interval available.
     base_target = min(target_soc, 80.0)
     base_input_kwh = max(0.0, base_target - soc) / 100 * battery_capacity_kwh / max(0.01, efficiency)
-    for index in sorted(range(len(candidates)), key=lambda i: (candidates[i].price, candidates[i].start)):
-        if index in used:
-            continue
-        delivered_input += take(index, min(base_input_kwh, needed_input_kwh) - delivered_input)
-        if delivered_input + 1e-9 >= min(base_input_kwh, needed_input_kwh):
+    top_up_kwh = max(0.0, needed_input_kwh - max(base_input_kwh, delivered_input))
+    top_up_delivered = 0.0
+    for index in sorted(range(len(candidates)), key=lambda i: candidates[i].end, reverse=True):
+        top_up_delivered += take(index, top_up_kwh - top_up_delivered, from_end=True)
+        if top_up_delivered + 1e-9 >= top_up_kwh:
             break
-
-    if delivered_input < needed_input_kwh:
-        for index in sorted(range(len(candidates)), key=lambda i: candidates[i].end, reverse=True):
-            if index in used:
-                continue
-            delivered_input += take(index, needed_input_kwh - delivered_input, from_end=True)
-            if delivered_input + 1e-9 >= needed_input_kwh:
-                break
+    delivered_input += top_up_delivered
+    for index in sorted(range(len(candidates)), key=lambda i: (candidates[i].price, candidates[i].start)):
+        delivered_input += take(index, needed_input_kwh - delivered_input)
+        if delivered_input + 1e-9 >= needed_input_kwh:
+            break
 
     selected = sorted(selected, key=lambda item: item.start)
 

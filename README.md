@@ -1,6 +1,10 @@
 # Smart EV Charging for Home Assistant
 
+![Smart EV Charging](custom_components/smart_ev_charging/brand/icon.png)
+
 A reusable Home Assistant custom integration that makes an EV ready by a deadline while buying the cheapest feasible energy. It was designed around a Škoda Enyaq, Zaptec Go with native authentication, Nord Pool NO2, and a 07:45 departure, but none of those values are hardcoded.
+
+Version 0.1.1 is prepared for supervised testing. A stable rollout requires the [hardware acceptance checklist](docs/RELEASING.md). Automated tests cannot confirm a physical Zaptec/Enyaq charging session.
 
 ## What it does
 
@@ -34,8 +38,8 @@ A reusable Home Assistant custom integration that makes an EV ready by a deadlin
 
 ### HACS custom repository
 
-1. In HACS, open **Integrations**.
-2. Open the menu and choose **Custom repositories**.
+1. Open HACS.
+2. Open the three-dot menu and choose **Custom repositories**.
 3. Add `https://github.com/RonRadtke/home-assistant-smart-ev-charging` as category **Integration**.
 4. Install **Smart EV Charging** and restart Home Assistant.
 
@@ -58,6 +62,8 @@ Open **Settings → Devices & services → Add integration → Smart EV Charging
 | Charger type | Zaptec with native authentication |
 
 The official Škoda integration is supported through its normal HA entities. Smart EV Charging deliberately does not call Škoda's API itself; this keeps credentials in the official integration and makes the optimizer work with other vehicles too.
+
+For a **generic charging switch**, the connected sensor is optional. If omitted, an available switch means the vehicle is assumed connected, regardless of whether that switch is on or off. Select a connection sensor to detect unplugging and reset Charge now. If a configured connection sensor is missing or unavailable, charging is not requested.
 
 ### Zaptec entities
 
@@ -88,6 +94,8 @@ It stops with **Stop charging** and does not use Zaptec's problematic deauthoriz
 
 The 3.7 kW value is only a fallback. When the actual-power entity reports a useful value, the plan is recalculated with that observed rate. Both watts and kilowatts are accepted.
 
+Units come from the sensor's unit attribute. Standby readings at or below 100 W, unknown units, invalid values, and readings above 50 kW are ignored. The last useful measurement is retained for the current integration session; a restart uses the configured fallback until a new useful measurement arrives.
+
 ## Entities
 
 | Entity | Purpose |
@@ -99,7 +107,7 @@ The 3.7 kW value is only a fallback. When the actual-power entity reports a usef
 | Minimum SOC | Runtime immediate-charge threshold |
 | Departure | Runtime daily deadline |
 | Should charge | Current desired charger state |
-| Status | Ready, charging, disconnected, disabled, error, or deadline unreachable |
+| Status | Ready, scheduled, starting, charging, not connected, missing SOC, disabled, error, or deadline unreachable |
 | Required energy/time | Calculated remaining requirement |
 | Next start/end | Next planned charging window |
 | Estimated cost | Cost based on effective configured price |
@@ -108,17 +116,23 @@ The 3.7 kW value is only a fallback. When the actual-power entity reports a usef
 
 Runtime controls survive Home Assistant restarts. **Charge now** resets after unplugging, and trip mode resets after the vehicle reaches 99%. Durable defaults and tariff values are changed through **Configure** on the integration entry.
 
+Changing a default target, minimum, or departure replaces the corresponding saved runtime value on reload. Unchanged defaults preserve runtime overrides. **Starting** means a charging command is requested; **Charging** means the selected charger reports charging (or the generic switch reports on).
+
 ## Price handling
 
 For the native Nord Pool integration, the optimizer detects the selected Nord Pool entity and calls `nordpool.get_prices_for_date` for today and tomorrow. Nord Pool's action returns prices per MWh; Smart EV Charging converts them to the sensor's per-kWh scale.
 
 For community or template price sensors, these attributes are recognized:
 
-- `prices`: objects containing `start` and `price`/`value`
-- `raw_today` and `raw_tomorrow`: objects containing `start` and `value`
-- `today` and `tomorrow`: numeric arrays (24 hourly or 96 quarter-hour values)
+- `prices`: objects containing `start`, preferably `end`, and `price`/`value`
+- `raw_today` and `raw_tomorrow`: objects containing `start`, preferably `end`, and `value`
+- `today` and `tomorrow`: numeric arrays (24 hourly, 48 half-hour, or 96 quarter-hour values on a normal day; corresponding 23/25-hour counts on daylight-saving transition days)
 
-If only a current numeric price exists, it is conservatively treated as unchanged. This keeps deadline behavior working, but cannot optimize unknown future prices.
+Explicit interval ends and gaps are preserved. Timestamped records take precedence over duplicate numeric arrays. Without ends, a supported 15-, 30-, or 60-minute cadence is inferred; isolated records or ambiguous gaps use a conservative 15-minute interval. Supply explicit ends for reliable sparse or mixed-resolution forecasts.
+
+If only a current numeric price exists on a generic sensor, it is assumed unchanged for 48 hours. This is an estimate and cannot optimize unknown future prices. An empty/invalid forecast or failed native Nord Pool request does not use this fallback. Native price requests, including failures, are cached for 30 minutes; known unexpired prices can still be used during an outage.
+
+Intervals are calculated in UTC for correct elapsed time across daylight-saving changes. Grid tariff boundaries use Home Assistant's configured local timezone and split price intervals where needed. A nonexistent spring-forward departure time moves forward by the DST gap; an ambiguous autumn departure uses its first occurrence.
 
 Effective price is:
 
@@ -132,15 +146,19 @@ Capacity-tariff optimization is intentionally not claimed in v0.1: it requires w
 
 ## Safety and failure behavior
 
-- Missing SOC produces no optimized charging command and reports an incomplete plan.
+- Missing or invalid SOC reports an incomplete plan and stops an observed optimized charging session. Explicit Charge now can still request charging without SOC.
 - Missing tomorrow prices cannot falsely create a cheap future slot; the plan reports `deadline_unreachable` if there is not enough known time.
-- Charger service failures are logged and exposed in diagnostics/status, then retried with a cooldown.
+- Charger service failures are logged and exposed in diagnostics/status. Repeated attempts for the same command have a two-minute cooldown, including failed attempts.
 - Commands are de-duplicated to avoid repeatedly pressing cloud-backed Zaptec buttons.
 - If the integration is disabled, it does not force the charger on or off.
+- While enabled, it reconciles the actual charger state on startup, input changes, and every minute. Charging started externally outside the plan will be stopped.
+- Zaptec resume and authorization happen on separate state updates, allowing disable, unplug, or a changed target to cancel authorization.
 
 Always configure the car's own charge limit as a final safety boundary (normally 80%). In trip mode, raise that vehicle limit to 100% as well; this integration cannot override a lower limit unless the selected vehicle integration provides that capability separately.
 
 ## Development
+
+Use Python 3.14.2 or newer on Linux (Home Assistant's supported runtime):
 
 ```bash
 python -m pip install -e '.[test]'
@@ -148,7 +166,15 @@ pytest
 ruff check .
 ```
 
-The planning engine is pure Python and covered independently of Home Assistant. CI also imports the integration against the current Home Assistant package and runs HACS validation.
+Tests cover scheduling, partial intervals, price gaps, daylight-saving changes, power units, charger commands, concurrent refreshes, failure retries, persistence, configuration, entity platforms, and unload cleanup. CI runs against Home Assistant 2026.8.0 and the latest release, plus Hassfest and HACS validation.
+
+The editable install includes Home Assistant and all test dependencies. The brand artwork can be regenerated on Windows with `powershell -ExecutionPolicy Bypass -File scripts/build-brand.ps1`.
+
+## Releases and HACS listing
+
+Custom-repository installation does not require default-catalog inclusion. For a release, complete [docs/RELEASING.md](docs/RELEASING.md), then run the **Release** GitHub workflow on `main`. It runs validation first and publishes a full GitHub release. Prerelease is the default; a stable release requires explicitly confirming hardware acceptance.
+
+For default HACS listing, the owner or a major contributor must submit a PR to [hacs/default](https://github.com/hacs/default), adding `RonRadtke/home-assistant-smart-ev-charging` alphabetically to `integration`. HACS and Hassfest must pass without ignored checks, and a full GitHub release must exist. See the [current HACS submission requirements](https://www.hacs.xyz/docs/publish/include/).
 
 ## Removal
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -17,6 +17,13 @@ class PriceSlot:
     start: datetime
     end: datetime
     price: float
+
+    def __post_init__(self) -> None:
+        """Keep elapsed-time arithmetic correct across daylight-saving changes."""
+        if self.start.tzinfo is None or self.end.tzinfo is None:
+            raise ValueError("Price intervals must have timezone-aware timestamps")
+        object.__setattr__(self, "start", self.start.astimezone(UTC))
+        object.__setattr__(self, "end", self.end.astimezone(UTC))
 
     @property
     def hours(self) -> float:
@@ -42,6 +49,7 @@ class ChargePlan:
         return self.slots[0].end if self.slots else None
 
     def active(self, now: datetime) -> bool:
+        now = now.astimezone(UTC)
         return any(slot.start <= now < slot.end for slot in self.slots)
 
 

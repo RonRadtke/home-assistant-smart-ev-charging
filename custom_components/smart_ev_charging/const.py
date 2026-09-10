@@ -53,4 +53,4 @@ DEFAULTS: Final = {
 STATE_REQUESTING: Final = "connected_requesting"
 STATE_FINISHED: Final = "connected_finished"
 STATE_CHARGING: Final = "connected_charging"
-DISCONNECTED_STATES: Final = {"disconnected", "unknown", "unavailable", "off", "none"}
+DISCONNECTED_STATES: Final = {"disconnected", "unknown", "unavailable", "off", "none", "false", "0"}

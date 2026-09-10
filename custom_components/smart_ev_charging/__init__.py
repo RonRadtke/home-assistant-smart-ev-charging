@@ -13,8 +13,12 @@ type SmartEVChargingConfigEntry = ConfigEntry[RuntimeData]
 async def async_setup_entry(hass: HomeAssistant, entry: SmartEVChargingConfigEntry) -> bool:
     coordinator = SmartEVChargingCoordinator(hass, entry)
     entry.runtime_data = RuntimeData(coordinator)
-    await coordinator.async_start()
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    try:
+        await coordinator.async_start()
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    except BaseException:
+        await coordinator.async_stop()
+        raise
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     return True
 
