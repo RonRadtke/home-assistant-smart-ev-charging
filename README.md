@@ -10,7 +10,7 @@ Version 0.1.1 is prepared for supervised testing. A stable rollout requires the 
 
 - Plans against a target SOC and next departure deadline.
 - Uses all available time when necessary; price optimization never makes the requested SOC deliberately late.
-- Immediately charges to a configurable minimum SOC when the battery is low.
+- Prioritizes immediate charging to a configurable minimum SOC when the battery is low and a current price interval is known.
 - Charges cheaply up to 80%, then schedules a trip-mode 80→100% top-up as late as possible.
 - Supports 15-, 30-, and 60-minute price intervals.
 - Fetches full today/tomorrow prices from Home Assistant's native Nord Pool integration.
@@ -148,6 +148,7 @@ Capacity-tariff optimization is intentionally not claimed in v0.1: it requires w
 
 - Missing or invalid SOC reports an incomplete plan and stops an observed optimized charging session. Explicit Charge now can still request charging without SOC.
 - Missing tomorrow prices cannot falsely create a cheap future slot; the plan reports `deadline_unreachable` if there is not enough known time.
+- With no known current price interval, optimized charging waits for a known interval, including below minimum SOC. Charge now is the explicit override for a price outage.
 - Charger service failures are logged and exposed in diagnostics/status. Repeated attempts for the same command have a two-minute cooldown, including failed attempts.
 - Commands are de-duplicated to avoid repeatedly pressing cloud-backed Zaptec buttons.
 - If the integration is disabled, it does not force the charger on or off.

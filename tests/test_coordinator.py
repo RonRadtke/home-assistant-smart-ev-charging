@@ -238,3 +238,39 @@ async def test_service_registry_receives_real_switch_command(coordinator, hass):
     await coordinator.async_refresh(NOW)
     assert calls == [{"entity_id": "switch.charger"}]
     assert hass.states.get("switch.charger").state == "on"
+
+
+async def test_unplug_during_price_request_does_not_start_charging(coordinator, hass):
+    hass.config_entries.async_update_entry(coordinator.entry, data={
+        **coordinator.entry.data, "plugged_entity": "binary_sensor.connected",
+    })
+    hass.states.async_set("binary_sensor.connected", "on")
+
+    async def prices(now):
+        hass.states.async_set("binary_sensor.connected", "off")
+        return [PriceSlot(NOW, NOW + timedelta(hours=1), 1)]
+
+    coordinator._async_get_prices.side_effect = prices
+    with patch.object(hass.services, "async_call", new_callable=AsyncMock) as call:
+        await coordinator.async_refresh(NOW)
+    call.assert_not_awaited()
+    assert not coordinator.should_charge
+
+
+async def test_unload_waits_for_running_command_and_cancels_queued_refresh(coordinator, hass):
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def slow_call(*args, **kwargs):
+        entered.set()
+        await release.wait()
+
+    with patch.object(hass.services, "async_call", side_effect=slow_call) as call:
+        first = asyncio.create_task(coordinator.async_refresh(NOW))
+        await entered.wait()
+        stop = asyncio.create_task(coordinator.async_stop())
+        await asyncio.sleep(0)
+        assert not stop.done()
+        queued = asyncio.create_task(coordinator.async_refresh(NOW + timedelta(minutes=3)))
+        release.set()
+        await asyncio.gather(first, stop, queued)
+    assert call.await_count == 1

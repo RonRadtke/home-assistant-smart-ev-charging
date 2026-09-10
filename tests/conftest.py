@@ -21,7 +21,7 @@ NOW = datetime(2026, 9, 10, 16, tzinfo=UTC)
 async def hass(tmp_path) -> AsyncGenerator[HomeAssistant]:
     instance = HomeAssistant(str(tmp_path))
     instance.config_entries = ConfigEntries(instance, {})
-    instance.config.set_time_zone("Europe/Oslo")
+    await instance.config.async_set_time_zone("Europe/Oslo")
     yield instance
     await instance.async_stop(force=True)
     dt_util.set_default_time_zone(UTC)

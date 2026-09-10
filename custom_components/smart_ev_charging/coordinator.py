@@ -215,6 +215,9 @@ class SmartEVChargingCoordinator:
 
     async def _async_refresh_locked(self, now: datetime | None = None) -> None:
         now = dt_util.as_local(now or dt_util.now())
+        prices = await self._async_get_prices(now)
+        # Network requests can yield while sensors change. Sample control inputs
+        # afterwards so a queued unplug/SOC update cannot start a stale plan.
         self.soc = self._float_state(self.option(CONF_SOC_ENTITY))
         if self.soc is not None and not 0 <= self.soc <= 100:
             self.soc = None
@@ -238,7 +241,6 @@ class SmartEVChargingCoordinator:
                 self.effective_power_kw = power_kw
         self.deadline = self._next_deadline(now)
 
-        prices = await self._async_get_prices(now)
         prices = add_tariffs(
             prices,
             markup=float(self.option(CONF_MARKUP)),
@@ -330,6 +332,8 @@ class SmartEVChargingCoordinator:
 
     async def _async_command(self, domain: str, service: str, entity_id: str | None, now: datetime) -> None:
         if not entity_id or self._stopped or not self.enabled:
+            return
+        if self.should_charge and not self._is_plugged():
             return
         key = (domain, service, entity_id)
         last_attempt = self._command_attempts.get(key)
