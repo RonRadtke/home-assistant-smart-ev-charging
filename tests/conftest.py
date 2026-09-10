@@ -6,9 +6,9 @@ from types import MappingProxyType
 from unittest.mock import AsyncMock
 
 import pytest
+from homeassistant.bootstrap import async_load_base_functionality
 from homeassistant.config_entries import ConfigEntries, ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from custom_components.smart_ev_charging.const import DOMAIN
@@ -23,7 +23,7 @@ async def hass(tmp_path) -> AsyncGenerator[HomeAssistant]:
     instance = HomeAssistant(str(tmp_path))
     instance.config_entries = ConfigEntries(instance, {})
     await instance.config.async_set_time_zone("Europe/Oslo")
-    await er.async_load(instance, load_empty=True)
+    assert await async_load_base_functionality(instance)
     yield instance
     await instance.async_stop(force=True)
     dt_util.set_default_time_zone(UTC)
