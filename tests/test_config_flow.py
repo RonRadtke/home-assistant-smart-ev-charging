@@ -44,13 +44,26 @@ async def test_zaptec_form_requires_all_control_buttons(hass):
 
 
 async def test_options_form_loads_current_values(hass, entry):
-    hass.config_entries.async_update_entry(entry, options={"target_soc": 90})
+    hass.config_entries.async_update_entry(
+        entry,
+        options={
+            "target_soc": 90,
+            "plugged_entity": "binary_sensor.connected",
+            "power_entity": "sensor.charging_power",
+        },
+    )
     flow = SmartEVChargingOptionsFlow()
     flow.hass = hass
     flow.handler = entry.entry_id
     result = await flow.async_step_init()
     defaults = result["data_schema"]({})
     assert defaults["target_soc"] == 90
+    assert defaults["soc_entity"] == "sensor.soc"
+    assert defaults["price_entity"] == "sensor.price"
+    assert defaults["plugged_entity"] == "binary_sensor.connected"
+    assert defaults["power_entity"] == "sensor.charging_power"
+    defaults["price_entity"] = "sensor.correct_price"
     result = await flow.async_step_init(defaults)
     assert result["type"] == "create_entry"
     assert result["data"]["target_soc"] == 90
+    assert result["data"]["price_entity"] == "sensor.correct_price"

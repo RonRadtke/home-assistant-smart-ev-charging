@@ -113,34 +113,46 @@ class SmartEVChargingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class SmartEVChargingOptionsFlow(config_entries.OptionsFlow):
-    """Configure optimization and tariff options."""
+    """Configure data sources, optimization, and tariff options."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
             return self.async_create_entry(data=user_input)
         current = {**self.config_entry.data, **self.config_entry.options}
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_BATTERY_CAPACITY, default=current.get(CONF_BATTERY_CAPACITY, 77)): _number(
-                    5, 250, 0.1
-                ),
-                vol.Required(CONF_CHARGE_POWER, default=current.get(CONF_CHARGE_POWER, 3.7)): _number(0.5, 50, 0.1),
-                vol.Required(CONF_EFFICIENCY, default=current.get(CONF_EFFICIENCY, 0.9)): _number(0.5, 1, 0.01),
-                vol.Required(CONF_TARGET_SOC, default=current.get(CONF_TARGET_SOC, 80)): _number(10, 100),
-                vol.Required(CONF_MINIMUM_SOC, default=current.get(CONF_MINIMUM_SOC, 30)): _number(0, 100),
-                vol.Required(CONF_DEPARTURE, default=current.get(CONF_DEPARTURE, "07:45:00")): selector.TimeSelector(),
-                vol.Required(CONF_MARKUP, default=current.get(CONF_MARKUP, 0)): _number(-10, 10, 0.001),
-                vol.Required(CONF_DAY_GRID_FEE, default=current.get(CONF_DAY_GRID_FEE, 0)): _number(0, 10, 0.001),
-                vol.Required(CONF_NIGHT_GRID_FEE, default=current.get(CONF_NIGHT_GRID_FEE, 0)): _number(0, 10, 0.001),
-                vol.Required(
-                    CONF_NIGHT_START, default=current.get(CONF_NIGHT_START, "22:00:00")
-                ): selector.TimeSelector(),
-                vol.Required(CONF_NIGHT_END, default=current.get(CONF_NIGHT_END, "06:00:00")): selector.TimeSelector(),
-                vol.Required(CONF_FIXED_PRICE, default=current.get(CONF_FIXED_PRICE, -1)): _number(-1, 20, 0.001),
-                vol.Required(CONF_SUPPORT_THRESHOLD, default=current.get(CONF_SUPPORT_THRESHOLD, 0)): _number(
-                    0, 20, 0.001
-                ),
-                vol.Required(CONF_SUPPORT_RATE, default=current.get(CONF_SUPPORT_RATE, 0)): _number(0, 1, 0.01),
-            }
-        )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        fields: dict[vol.Marker, Any] = {
+            vol.Required(CONF_SOC_ENTITY, default=current[CONF_SOC_ENTITY]): _entity("sensor"),
+            vol.Required(CONF_PRICE_ENTITY, default=current[CONF_PRICE_ENTITY]): _entity("sensor"),
+            vol.Required(CONF_BATTERY_CAPACITY, default=current.get(CONF_BATTERY_CAPACITY, 77)): _number(
+                5, 250, 0.1
+            ),
+            vol.Required(CONF_CHARGE_POWER, default=current.get(CONF_CHARGE_POWER, 3.7)): _number(0.5, 50, 0.1),
+            vol.Required(CONF_EFFICIENCY, default=current.get(CONF_EFFICIENCY, 0.9)): _number(0.5, 1, 0.01),
+            vol.Required(CONF_TARGET_SOC, default=current.get(CONF_TARGET_SOC, 80)): _number(10, 100),
+            vol.Required(CONF_MINIMUM_SOC, default=current.get(CONF_MINIMUM_SOC, 30)): _number(0, 100),
+            vol.Required(CONF_DEPARTURE, default=current.get(CONF_DEPARTURE, "07:45:00")): selector.TimeSelector(),
+            vol.Required(CONF_MARKUP, default=current.get(CONF_MARKUP, 0)): _number(-10, 10, 0.001),
+            vol.Required(CONF_DAY_GRID_FEE, default=current.get(CONF_DAY_GRID_FEE, 0)): _number(0, 10, 0.001),
+            vol.Required(CONF_NIGHT_GRID_FEE, default=current.get(CONF_NIGHT_GRID_FEE, 0)): _number(0, 10, 0.001),
+            vol.Required(
+                CONF_NIGHT_START, default=current.get(CONF_NIGHT_START, "22:00:00")
+            ): selector.TimeSelector(),
+            vol.Required(CONF_NIGHT_END, default=current.get(CONF_NIGHT_END, "06:00:00")): selector.TimeSelector(),
+            vol.Required(CONF_FIXED_PRICE, default=current.get(CONF_FIXED_PRICE, -1)): _number(-1, 20, 0.001),
+            vol.Required(CONF_SUPPORT_THRESHOLD, default=current.get(CONF_SUPPORT_THRESHOLD, 0)): _number(
+                0, 20, 0.001
+            ),
+            vol.Required(CONF_SUPPORT_RATE, default=current.get(CONF_SUPPORT_RATE, 0)): _number(0, 1, 0.01),
+        }
+
+        # Optional entity selectors need no default when they were left empty.
+        # Passing ``None`` as an entity-selector default is rejected by Home Assistant.
+        if plugged_entity := current.get(CONF_PLUGGED_ENTITY):
+            fields[vol.Optional(CONF_PLUGGED_ENTITY, default=plugged_entity)] = _entity(["binary_sensor", "sensor"])
+        else:
+            fields[vol.Optional(CONF_PLUGGED_ENTITY)] = _entity(["binary_sensor", "sensor"])
+        if power_entity := current.get(CONF_POWER_ENTITY):
+            fields[vol.Optional(CONF_POWER_ENTITY, default=power_entity)] = _entity("sensor")
+        else:
+            fields[vol.Optional(CONF_POWER_ENTITY)] = _entity("sensor")
+
+        return self.async_show_form(step_id="init", data_schema=vol.Schema(fields))

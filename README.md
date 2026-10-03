@@ -114,7 +114,7 @@ Units come from the sensor's unit attribute. Standby readings at or below 100 W,
 | Charging schedule | Calendar containing the planned windows |
 | Refresh plan | Immediate manual recalculation |
 
-Runtime controls survive Home Assistant restarts. **Charge now** resets after unplugging, and trip mode resets after the vehicle reaches 99%. Durable defaults and tariff values are changed through **Configure** on the integration entry.
+Runtime controls survive Home Assistant restarts. **Charge now** resets after unplugging, and trip mode resets after the vehicle reaches 99%. Data-source entities, durable defaults, and tariff values are changed through **Configure** on the integration entry; deleting and recreating the entry is not required.
 
 Changing a default target, minimum, or departure replaces the corresponding saved runtime value on reload. Unchanged defaults preserve runtime overrides. **Starting** means a charging command is requested; **Charging** means the selected charger reports charging (or the generic switch reports on).
 
