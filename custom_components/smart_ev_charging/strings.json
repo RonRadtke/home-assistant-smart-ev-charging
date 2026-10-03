@@ -42,8 +42,12 @@
   "options": {
     "step": {
       "init": {
-        "title": "Charging and tariff settings",
+        "title": "Data sources, charging and tariffs",
         "data": {
+          "soc_entity": "Vehicle state of charge",
+          "plugged_entity": "Vehicle connected (optional)",
+          "price_entity": "Electricity price",
+          "power_entity": "Actual charging power (optional)",
           "battery_capacity": "Usable battery capacity (kWh)",
           "charge_power": "Fallback charging power (kW)",
           "efficiency": "Charging efficiency",
@@ -60,6 +64,9 @@
           "support_rate": "Support rate (0–1)"
         },
         "data_description": {
+          "plugged_entity": "If omitted, the Zaptec operating mode is used.",
+          "price_entity": "Supports Nord Pool today/tomorrow and raw price attributes, or a generic numeric price sensor.",
+          "power_entity": "Used to learn the real charging rate; values in W and kW are accepted.",
           "price_markup": "Use the same currency and per-kWh unit as the price entity.",
           "day_grid_fee": "Added to market price during the day.",
           "night_grid_fee": "Added to market price during the configured night period.",
