@@ -93,4 +93,6 @@ class SmartEVSensor(SmartEVChargingEntity, SensorEntity):
             "plan_complete": self.coordinator.plan.complete,
             "effective_power_kw": self.coordinator.effective_power_kw,
             "last_error": self.coordinator.last_error,
+            "charge_window": self.coordinator.charge_window,
+            "extension_kwh": self.coordinator.plan.extension_kwh,
         }

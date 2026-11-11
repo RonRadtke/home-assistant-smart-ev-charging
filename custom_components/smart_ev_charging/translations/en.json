@@ -131,6 +131,12 @@
       },
       "trip_mode": {
         "name": "Trip mode"
+      },
+      "charge_window": {
+        "name": "Charging window only"
+      },
+      "window_extension": {
+        "name": "Extend window to reach target"
       }
     },
     "number": {
@@ -144,6 +150,12 @@
     "time": {
       "departure": {
         "name": "Departure"
+      },
+      "window_start": {
+        "name": "Charging window start"
+      },
+      "window_end": {
+        "name": "Charging window end"
       }
     },
     "button": {

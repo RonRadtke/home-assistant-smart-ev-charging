@@ -1,7 +1,7 @@
 """Regression tests for charger state, retries, persistence, and native prices."""
 
 import asyncio
-from datetime import timedelta
+from datetime import time, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -286,3 +286,51 @@ async def test_fixed_price_does_not_depend_on_a_spot_forecast(coordinator, hass)
     assert coordinator.plan.complete
     assert coordinator.plan.estimated_cost == 5
     call.assert_awaited_once_with("switch", "turn_on", {"entity_id": "switch.charger"}, blocking=True)
+
+
+async def test_charging_window_defers_charging_until_it_opens(coordinator, hass):
+    coordinator.charge_window = True
+    coordinator.window_extension = False
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
+        await coordinator.async_refresh(NOW)
+    call.assert_not_awaited()
+    assert not coordinator.should_charge
+    assert coordinator.plan.complete
+    # 22:00 in Europe/Oslo during summer time.
+    assert coordinator.plan.next_start == NOW + timedelta(hours=4)
+    assert coordinator.status == "scheduled"
+
+
+@pytest.mark.parametrize(("extension", "complete", "extension_kwh"), [(False, False, 0), (True, True, 5)])
+async def test_window_extension_option_controls_reaching_the_target(coordinator, hass, extension, complete,
+                                                                    extension_kwh):
+    coordinator.charge_window = True
+    coordinator.window_extension = extension
+    coordinator.window_start, coordinator.window_end = time(23), time(23, 30)
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock):
+        await coordinator.async_refresh(NOW)
+    assert coordinator.plan.complete is complete
+    assert coordinator.plan.extension_kwh == pytest.approx(extension_kwh)
+
+
+async def test_charge_now_overrides_the_charging_window(coordinator, hass):
+    coordinator.charge_window = True
+    coordinator.window_extension = False
+    coordinator.charge_now = True
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock) as call:
+        await coordinator.async_refresh(NOW)
+    call.assert_awaited_once_with("switch", "turn_on", {"entity_id": "switch.charger"}, blocking=True)
+
+
+async def test_charging_window_settings_survive_restart(coordinator, hass):
+    coordinator.enabled = False
+    with patch.object(type(hass.services), "async_call", new_callable=AsyncMock):
+        await coordinator.async_set_charge_window(True)
+        await coordinator.async_set_window_extension(False)
+        await coordinator.async_set_window_start(time(1, 30))
+        await coordinator.async_set_window_end(time(5))
+    restored = SmartEVChargingCoordinator(hass, coordinator.entry)
+    await restored.async_start()
+    assert (restored.charge_window, restored.window_extension) == (True, False)
+    assert (restored.window_start, restored.window_end) == (time(1, 30), time(5))
+    await restored.async_stop()

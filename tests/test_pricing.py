@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from custom_components.smart_ev_charging.models import PriceSlot
-from custom_components.smart_ev_charging.pricing import add_tariffs, parse_price_slots
+from custom_components.smart_ev_charging.pricing import add_tariffs, parse_price_slots, split_by_window
 
 
 def test_numeric_quarter_hour_prices():
@@ -87,3 +87,28 @@ def test_start_only_records_do_not_bridge_long_gaps():
         {"start": now, "price": 1}, {"start": now + timedelta(hours=4), "price": 2},
     ]}, now)
     assert sum(slot.hours for slot in result) == 0.5
+
+
+def test_window_split_is_local_and_overnight():
+    zone = ZoneInfo("Europe/Oslo")
+    slot = PriceSlot(datetime(2026, 9, 10, 20, tzinfo=zone), datetime(2026, 9, 11, 8, tzinfo=zone), 1)
+    inside, outside = split_by_window([slot], start=time(22), end=time(6), timezone=zone)
+    assert [(s.start, s.end) for s in inside] == [
+        (datetime(2026, 9, 10, 22, tzinfo=zone), datetime(2026, 9, 11, 6, tzinfo=zone))
+    ]
+    assert sum(s.hours for s in outside) == 4
+
+
+def test_window_split_uses_elapsed_time_across_dst_end():
+    zone = ZoneInfo("Europe/Oslo")
+    slot = PriceSlot(datetime(2026, 10, 24, 20, tzinfo=zone), datetime(2026, 10, 25, 8, tzinfo=zone), 1)
+    inside, outside = split_by_window([slot], start=time(22), end=time(6), timezone=zone)
+    assert sum(s.hours for s in inside) == 9
+    assert sum(s.hours for s in outside) == 4
+
+
+def test_equal_window_bounds_allow_the_whole_day():
+    slot = PriceSlot(datetime(2026, 9, 10, tzinfo=UTC), datetime(2026, 9, 11, tzinfo=UTC), 1)
+    inside, outside = split_by_window([slot], start=time(6), end=time(6), timezone=UTC)
+    assert sum(s.hours for s in inside) == 24
+    assert not outside

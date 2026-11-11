@@ -46,6 +46,12 @@
       },
       "trip_mode": {
         "name": "Turmodus"
+      },
+      "charge_window": {
+        "name": "Kun lading i ladevindu"
+      },
+      "window_extension": {
+        "name": "Utvid ladevindu for å nå målet"
       }
     },
     "number": {
@@ -59,6 +65,12 @@
     "time": {
       "departure": {
         "name": "Avreise"
+      },
+      "window_start": {
+        "name": "Ladevindu start"
+      },
+      "window_end": {
+        "name": "Ladevindu slutt"
       }
     },
     "button": {

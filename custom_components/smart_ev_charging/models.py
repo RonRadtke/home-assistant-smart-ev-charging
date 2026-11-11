@@ -39,6 +39,8 @@ class ChargePlan:
     deliverable_kwh: float = 0
     estimated_cost: float = 0
     complete: bool = True
+    # Battery energy planned outside the charging window to reach the target.
+    extension_kwh: float = 0
 
     @property
     def next_start(self) -> datetime | None:

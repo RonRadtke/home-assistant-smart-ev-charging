@@ -143,3 +143,49 @@ def test_invalid_soc_is_incomplete(soc):
     result = plan(soc=soc)
     assert not result.complete
     assert not result.slots
+
+
+def window_plan(*, soc=60, target=80, prices=(1, 1, 5, 5), window=(2, 4), extension=True, minimum=0):
+    """Plan with the hours in `window` (relative to NOW) as the charging window."""
+    all_slots = slots(prices)
+    inside = [slot for slot in all_slots if NOW + timedelta(hours=window[0]) <= slot.start < NOW + timedelta(
+        hours=window[1])]
+    outside = [slot for slot in all_slots if slot not in inside]
+    return build_plan(
+        now=NOW, deadline=NOW + timedelta(hours=len(prices)), soc=soc, target_soc=target, minimum_soc=minimum,
+        battery_capacity_kwh=100, charge_power_kw=10, efficiency=1,
+        prices=inside, extension_prices=outside if extension else None,
+    )
+
+
+def test_window_is_preferred_over_cheaper_time_outside_it():
+    result = window_plan(soc=70, target=80)
+    assert result.complete
+    assert result.slots == (PriceSlot(NOW + timedelta(hours=2), NOW + timedelta(hours=3), 5),)
+    assert result.extension_kwh == 0
+
+
+def test_window_without_extension_reports_unreachable_target():
+    result = window_plan(soc=40, target=80, extension=False)
+    assert not result.complete
+    assert result.deliverable_kwh == pytest.approx(20)
+    assert all(NOW + timedelta(hours=2) <= slot.start for slot in result.slots)
+
+
+def test_extension_covers_only_the_shortfall_at_the_cheapest_outside_price():
+    result = window_plan(soc=50, target=80, prices=(3, 1, 5, 5), window=(2, 4))
+    assert result.complete
+    assert result.extension_kwh == pytest.approx(10)
+    assert result.slots[0] == PriceSlot(NOW + timedelta(hours=1), NOW + timedelta(hours=4), pytest.approx(11 / 3))
+
+
+def test_low_soc_recovery_waits_for_the_window():
+    result = window_plan(soc=10, target=30, minimum=30, extension=False)
+    assert result.complete
+    assert result.slots[0].start == NOW + timedelta(hours=2)
+
+
+def test_extension_alone_still_plans_when_window_has_no_time_left():
+    result = window_plan(soc=70, target=80, window=(9, 10))
+    assert result.complete
+    assert result.extension_kwh == pytest.approx(10)

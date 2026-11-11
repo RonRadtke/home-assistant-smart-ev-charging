@@ -4,7 +4,7 @@
 
 A reusable Home Assistant custom integration that makes an EV ready by a deadline while buying the cheapest feasible energy. It was designed around a Škoda Enyaq, Zaptec Go with native authentication, Nord Pool NO2, and a 07:45 departure, but none of those values are hardcoded.
 
-Version 0.1.1 is prepared for supervised testing. A stable rollout requires the [hardware acceptance checklist](docs/RELEASING.md). Automated tests cannot confirm a physical Zaptec/Enyaq charging session.
+Version 0.1.3 is prepared for supervised testing. A stable rollout requires the [hardware acceptance checklist](docs/RELEASING.md). Automated tests cannot confirm a physical Zaptec/Enyaq charging session.
 
 ## What it does
 
@@ -12,6 +12,7 @@ Version 0.1.1 is prepared for supervised testing. A stable rollout requires the 
 - Uses all available time when necessary; price optimization never makes the requested SOC deliberately late.
 - Prioritizes immediate charging to a configurable minimum SOC when the battery is low and a current price interval is known.
 - Charges cheaply up to 80%, then schedules a trip-mode 80→100% top-up as late as possible.
+- Optionally restricts charging to a daily time window, with an opt-in extension outside it when the window alone cannot reach the target.
 - Supports 15-, 30-, and 60-minute price intervals.
 - Fetches full today/tomorrow prices from Home Assistant's native Nord Pool integration.
 - Adds supplier markup, electricity support, and day/night grid energy tariffs to the spot price.
@@ -106,6 +107,9 @@ Units come from the sensor's unit attribute. Standby readings at or below 100 W,
 | Target SOC | Runtime normal target |
 | Minimum SOC | Runtime immediate-charge threshold |
 | Departure | Runtime daily deadline |
+| Charging window only | Restrict optimized charging to the daily charging window |
+| Extend window to reach target | Allow charging outside the window when the window alone cannot reach the target |
+| Charging window start/end | Local start and end of the charging window |
 | Should charge | Current desired charger state |
 | Status | Ready, scheduled, starting, charging, not connected, missing SOC, disabled, error, or deadline unreachable |
 | Required energy/time | Calculated remaining requirement |
@@ -113,6 +117,15 @@ Units come from the sensor's unit attribute. Standby readings at or below 100 W,
 | Estimated cost | Cost based on effective configured price |
 | Charging schedule | Calendar containing the planned windows |
 | Refresh plan | Immediate manual recalculation |
+
+### Charging window
+
+Turn on **Charging window only** to plan optimized charging inside a daily local time window, for example 22:00–06:00. Windows that cross midnight are supported; equal start and end mean the whole day. The window follows Home Assistant's local time zone, including daylight-saving changes.
+
+- With **Extend window to reach target** on (the default), the plan first uses the cheapest time inside the window. Only the energy the window cannot deliver before departure is bought outside it, at the cheapest known prices. The planned amount is shown as `extension_kwh` on the Status entity.
+- With it off, charging never happens outside the window. If the window is too short, the status is `deadline_unreachable` and the car leaves below target.
+- The window also governs low-SOC recovery: below minimum SOC, charging starts at the earliest window time, not immediately.
+- **Charge now** ignores the window.
 
 Runtime controls survive Home Assistant restarts. **Charge now** resets after unplugging, and trip mode resets after the vehicle reaches 99%. Data-source entities, durable defaults, and tariff values are changed through **Configure** on the integration entry; deleting and recreating the entry is not required.
 

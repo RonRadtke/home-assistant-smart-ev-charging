@@ -104,6 +104,51 @@ def parse_price_slots(attributes: dict[str, Any], now: datetime, state_price: An
     return result
 
 
+def in_local_window(value: time, start: time, end: time) -> bool:
+    """Whether a local wall-clock time lies in [start, end); equal bounds mean all day."""
+    if start < end:
+        return start <= value < end
+    return value >= start or value < end
+
+
+def _split_at_local_times(slot: PriceSlot, boundaries: tuple[time, ...], timezone: tzinfo) -> list[PriceSlot]:
+    """Split an interval at local wall-clock boundaries and offset changes, including DST transitions."""
+    instants = {slot.start, slot.end}
+    day = slot.start.astimezone(timezone).date() - timedelta(days=1)
+    last_day = slot.end.astimezone(timezone).date() + timedelta(days=1)
+    while day <= last_day:
+        for boundary in boundaries:
+            for fold in (0, 1):
+                instant = datetime.combine(day, boundary, timezone).replace(fold=fold).astimezone(UTC)
+                if slot.start < instant < slot.end:
+                    instants.add(instant)
+        day += timedelta(days=1)
+    # Offset transitions can change a local period without crossing its wall-clock boundary.
+    cursor = slot.start.replace(second=0, microsecond=0) + timedelta(minutes=1)
+    previous_offset = slot.start.astimezone(timezone).utcoffset()
+    while cursor < slot.end:
+        offset = cursor.astimezone(timezone).utcoffset()
+        if offset != previous_offset:
+            instants.add(cursor)
+        previous_offset = offset
+        cursor += timedelta(minutes=1)
+    ordered = sorted(instants)
+    return [PriceSlot(start, end, slot.price) for start, end in zip(ordered, ordered[1:], strict=False)]
+
+
+def split_by_window(
+    slots: list[PriceSlot], *, start: time, end: time, timezone: tzinfo
+) -> tuple[list[PriceSlot], list[PriceSlot]]:
+    """Partition intervals into the parts inside and outside a daily local window."""
+    inside: list[PriceSlot] = []
+    outside: list[PriceSlot] = []
+    for slot in slots:
+        for part in _split_at_local_times(slot, (start, end), timezone):
+            local_time = part.start.astimezone(timezone).time()
+            (inside if in_local_window(local_time, start, end) else outside).append(part)
+    return inside, outside
+
+
 def add_tariffs(
     slots: list[PriceSlot],
     *,
@@ -118,38 +163,12 @@ def add_tariffs(
     timezone: tzinfo = UTC,
 ) -> list[PriceSlot]:
     """Split intervals at local tariff boundaries, including DST transitions."""
-    def is_night(value: time) -> bool:
-        if night_start < night_end:
-            return night_start <= value < night_end
-        return value >= night_start or value < night_end
-
     result = []
     for slot in slots:
         energy_price = fixed_price if fixed_price >= 0 else slot.price
         support = max(0.0, energy_price - support_threshold) * support_rate
-        boundaries = {slot.start, slot.end}
-        day = slot.start.astimezone(timezone).date() - timedelta(days=1)
-        last_day = slot.end.astimezone(timezone).date() + timedelta(days=1)
-        while day <= last_day:
-            for boundary in (night_start, night_end):
-                for fold in (0, 1):
-                    local = datetime.combine(day, boundary, timezone).replace(fold=fold)
-                    instant = local.astimezone(UTC)
-                    if slot.start < instant < slot.end:
-                        boundaries.add(instant)
-            day += timedelta(days=1)
-        # Offset transitions can change a tariff without crossing its wall-clock boundary.
-        cursor = slot.start.replace(second=0, microsecond=0) + timedelta(minutes=1)
-        previous_offset = slot.start.astimezone(timezone).utcoffset()
-        while cursor < slot.end:
-            offset = cursor.astimezone(timezone).utcoffset()
-            if offset != previous_offset:
-                boundaries.add(cursor)
-            previous_offset = offset
-            cursor += timedelta(minutes=1)
-        ordered = sorted(boundaries)
-        for start, end in zip(ordered, ordered[1:], strict=False):
-            local_time = start.astimezone(timezone).time()
-            grid_fee = night_fee if is_night(local_time) else day_fee
-            result.append(PriceSlot(start, end, energy_price - support + markup + grid_fee))
+        for part in _split_at_local_times(slot, (night_start, night_end), timezone):
+            night = in_local_window(part.start.astimezone(timezone).time(), night_start, night_end)
+            grid_fee = night_fee if night else day_fee
+            result.append(PriceSlot(part.start, part.end, energy_price - support + markup + grid_fee))
     return result

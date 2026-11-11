@@ -23,7 +23,7 @@ async def test_setup_all_platforms_diagnostics_and_unload(hass, entry):
 
     with patch.object(hass.config_entries, "async_forward_entry_setups", side_effect=forward):
         assert await async_setup_entry(hass, entry)
-    assert len(entities) == 15
+    assert len(entities) == 19
     assert len({entity.unique_id for entity in entities}) == len(entities)
     assert all(not entity.should_poll for entity in entities)
     assert entry.runtime_data.coordinator._listeners

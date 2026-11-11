@@ -43,6 +43,8 @@ from .const import (
     CONF_SUPPORT_RATE,
     CONF_SUPPORT_THRESHOLD,
     CONF_TARGET_SOC,
+    CONF_WINDOW_END,
+    CONF_WINDOW_START,
     DEFAULTS,
     DISCONNECTED_STATES,
     STATE_CHARGING,
@@ -51,7 +53,7 @@ from .const import (
 )
 from .models import ChargePlan, PriceSlot
 from .planner import build_plan
-from .pricing import add_tariffs, parse_price_slots
+from .pricing import add_tariffs, parse_price_slots, split_by_window
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +71,12 @@ class SmartEVChargingCoordinator:
         self.target_soc = float(self.option(CONF_TARGET_SOC))
         self.minimum_soc = float(self.option(CONF_MINIMUM_SOC))
         self.departure = self.option(CONF_DEPARTURE)
+        # Optimized charging may be restricted to a daily local window. Extension
+        # lets the shortfall use the cheapest time outside it to stay deadline-first.
+        self.charge_window = False
+        self.window_extension = True
+        self.window_start: time = DEFAULTS[CONF_WINDOW_START]
+        self.window_end: time = DEFAULTS[CONF_WINDOW_END]
         self.should_charge = False
         self.soc: float | None = None
         self.plugged = False
@@ -99,6 +107,11 @@ class SmartEVChargingCoordinator:
             self.enabled = bool(stored.get("enabled", self.enabled))
             self.charge_now = bool(stored.get("charge_now", self.charge_now))
             self.trip_mode = bool(stored.get("trip_mode", self.trip_mode))
+            self.charge_window = bool(stored.get("charge_window", self.charge_window))
+            self.window_extension = bool(stored.get("window_extension", self.window_extension))
+            for attribute in ("window_start", "window_end"):
+                if attribute in stored:
+                    setattr(self, attribute, time.fromisoformat(stored[attribute]))
             previous_defaults = stored.get("configured_defaults", {})
             for key, attribute in (
                 (CONF_TARGET_SOC, "target_soc"),
@@ -262,6 +275,12 @@ class SmartEVChargingCoordinator:
             self.trip_mode = False
             target = self.target_soc
             await self._async_save_state()
+        extension_prices: list[PriceSlot] = []
+        if self.charge_window:
+            prices, outside = split_by_window(
+                prices, start=self.window_start, end=self.window_end, timezone=now.tzinfo
+            )
+            extension_prices = outside if self.window_extension else []
         self.plan = (
             build_plan(
                 now=now,
@@ -273,6 +292,7 @@ class SmartEVChargingCoordinator:
                 charge_power_kw=self.effective_power_kw,
                 efficiency=float(self.option(CONF_EFFICIENCY)),
                 prices=prices,
+                extension_prices=extension_prices,
             )
             if self.soc is not None
             else ChargePlan(complete=False)
@@ -418,6 +438,26 @@ class SmartEVChargingCoordinator:
         await self._async_save_state()
         await self.async_refresh()
 
+    async def async_set_charge_window(self, value: bool) -> None:
+        self.charge_window = value
+        await self._async_save_state()
+        await self.async_refresh()
+
+    async def async_set_window_extension(self, value: bool) -> None:
+        self.window_extension = value
+        await self._async_save_state()
+        await self.async_refresh()
+
+    async def async_set_window_start(self, value: time) -> None:
+        self.window_start = value
+        await self._async_save_state()
+        await self.async_refresh()
+
+    async def async_set_window_end(self, value: time) -> None:
+        self.window_end = value
+        await self._async_save_state()
+        await self.async_refresh()
+
     async def async_set_departure(self, value) -> None:
         self.departure = value
         await self._async_save_state()
@@ -433,6 +473,10 @@ class SmartEVChargingCoordinator:
                 "target_soc": self.target_soc,
                 "minimum_soc": self.minimum_soc,
                 "departure": departure,
+                "charge_window": self.charge_window,
+                "window_extension": self.window_extension,
+                "window_start": self.window_start.isoformat(),
+                "window_end": self.window_end.isoformat(),
                 "configured_defaults": self._configured_defaults(),
             }
         )

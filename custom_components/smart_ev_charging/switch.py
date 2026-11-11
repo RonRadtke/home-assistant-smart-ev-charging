@@ -35,6 +35,18 @@ DESCRIPTIONS = (
         value_fn=lambda c: c.trip_mode,
         set_fn=lambda c, value: c.async_set_trip_mode(value),
     ),
+    SmartSwitchDescription(
+        key="charge_window",
+        translation_key="charge_window",
+        value_fn=lambda c: c.charge_window,
+        set_fn=lambda c, value: c.async_set_charge_window(value),
+    ),
+    SmartSwitchDescription(
+        key="window_extension",
+        translation_key="window_extension",
+        value_fn=lambda c: c.window_extension,
+        set_fn=lambda c, value: c.async_set_window_extension(value),
+    ),
 )
 
 

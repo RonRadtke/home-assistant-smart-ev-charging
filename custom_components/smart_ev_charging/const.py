@@ -30,6 +30,8 @@ CONF_NIGHT_END: Final = "night_end"
 CONF_FIXED_PRICE: Final = "fixed_energy_price"
 CONF_SUPPORT_THRESHOLD: Final = "support_threshold"
 CONF_SUPPORT_RATE: Final = "support_rate"
+CONF_WINDOW_START: Final = "window_start"
+CONF_WINDOW_END: Final = "window_end"
 
 CHARGER_GENERIC: Final = "generic"
 CHARGER_ZAPTEC: Final = "zaptec"
@@ -48,6 +50,8 @@ DEFAULTS: Final = {
     CONF_FIXED_PRICE: -1.0,
     CONF_SUPPORT_THRESHOLD: 0.0,
     CONF_SUPPORT_RATE: 0.0,
+    CONF_WINDOW_START: time(22, 0),
+    CONF_WINDOW_END: time(6, 0),
 }
 
 STATE_REQUESTING: Final = "connected_requesting"

@@ -25,6 +25,22 @@ def merge_adjacent(slots: list[PriceSlot]) -> tuple[PriceSlot, ...]:
     return tuple(merged)
 
 
+def _candidates(prices: list[PriceSlot], now: datetime, deadline: datetime) -> list[PriceSlot]:
+    """Clip known prices to the planning horizon without overlapping capacity."""
+    clipped = [
+        PriceSlot(max(slot.start, now), min(slot.end, deadline), slot.price)
+        for slot in prices
+        if slot.end > now and slot.start < deadline and isfinite(slot.price)
+    ]
+    # Never count overlapping input intervals as simultaneous charging capacity.
+    result: list[PriceSlot] = []
+    for slot in sorted(clipped, key=lambda item: (item.start, item.end)):
+        start = max(slot.start, result[-1].end) if result else slot.start
+        if start < slot.end:
+            result.append(PriceSlot(start, slot.end, slot.price))
+    return result
+
+
 def build_plan(
     *,
     now: datetime,
@@ -36,8 +52,13 @@ def build_plan(
     charge_power_kw: float,
     efficiency: float,
     prices: list[PriceSlot],
+    extension_prices: list[PriceSlot] | None = None,
 ) -> ChargePlan:
-    """Choose the cheapest feasible slots, with immediate low-SOC recovery."""
+    """Choose the cheapest feasible slots, with immediate low-SOC recovery.
+
+    `extension_prices` are used only for energy that `prices` cannot deliver
+    before the deadline, cheapest first. They must not overlap `prices`.
+    """
     now, deadline = now.astimezone(UTC), deadline.astimezone(UTC)
     if not all(isfinite(value) for value in (
         soc, target_soc, minimum_soc, battery_capacity_kwh, charge_power_kw, efficiency
@@ -49,20 +70,9 @@ def build_plan(
     if deadline <= now:
         return ChargePlan(required_kwh=required_kwh, complete=False)
 
-    candidates = [
-        PriceSlot(max(slot.start, now), min(slot.end, deadline), slot.price)
-        for slot in prices
-        if slot.end > now and slot.start < deadline and isfinite(slot.price)
-    ]
-    candidates = [slot for slot in candidates if slot.end > slot.start]
-    # Never count overlapping input intervals as simultaneous charging capacity.
-    non_overlapping = []
-    for slot in sorted(candidates, key=lambda item: (item.start, item.end)):
-        start = max(slot.start, non_overlapping[-1].end) if non_overlapping else slot.start
-        if start < slot.end:
-            non_overlapping.append(PriceSlot(start, slot.end, slot.price))
-    candidates = non_overlapping
-    if not candidates:
+    candidates = _candidates(prices, now, deadline)
+    extensions = _candidates(extension_prices or [], now, deadline)
+    if not candidates and not extensions:
         return ChargePlan(required_kwh=required_kwh, complete=False)
 
     needed_input_kwh = required_kwh / max(0.01, efficiency)
@@ -71,9 +81,9 @@ def build_plan(
     selected: list[PriceSlot] = []
     delivered_input = 0.0
 
-    def take(index: int, wanted_kwh: float, *, from_end: bool = False) -> float:
-        """Reserve all or part of a candidate and return input energy."""
-        slot = candidates[index]
+    def take(pool: list[PriceSlot], index: int, wanted_kwh: float, *, from_end: bool = False) -> float:
+        """Reserve all or part of a pool interval and return input energy."""
+        slot = pool[index]
         available = slot.hours * charge_power_kw
         amount = min(available, max(0.0, wanted_kwh))
         if amount <= 1e-9:
@@ -85,7 +95,7 @@ def build_plan(
             else PriceSlot(slot.start, slot.start + duration, slot.price)
         )
         selected.append(chosen)
-        candidates[index] = (
+        pool[index] = (
             PriceSlot(slot.start, chosen.start, slot.price)
             if from_end else PriceSlot(chosen.end, slot.end, slot.price)
         )
@@ -93,7 +103,7 @@ def build_plan(
 
     # When SOC is low, reserve the earliest intervals first for resilience.
     for index in sorted(range(len(candidates)), key=lambda i: candidates[i].start):
-        delivered_input += take(index, urgent_input_kwh - delivered_input)
+        delivered_input += take(candidates, index, urgent_input_kwh - delivered_input)
         if delivered_input + 1e-9 >= urgent_input_kwh:
             break
 
@@ -104,14 +114,21 @@ def build_plan(
     top_up_kwh = max(0.0, needed_input_kwh - max(base_input_kwh, delivered_input))
     top_up_delivered = 0.0
     for index in sorted(range(len(candidates)), key=lambda i: candidates[i].end, reverse=True):
-        top_up_delivered += take(index, top_up_kwh - top_up_delivered, from_end=True)
+        top_up_delivered += take(candidates, index, top_up_kwh - top_up_delivered, from_end=True)
         if top_up_delivered + 1e-9 >= top_up_kwh:
             break
     delivered_input += top_up_delivered
     for index in sorted(range(len(candidates)), key=lambda i: (candidates[i].price, candidates[i].start)):
-        delivered_input += take(index, needed_input_kwh - delivered_input)
+        delivered_input += take(candidates, index, needed_input_kwh - delivered_input)
         if delivered_input + 1e-9 >= needed_input_kwh:
             break
+
+    # Only the shortfall leaves the preferred intervals, at the cheapest extension prices.
+    preferred_input = delivered_input
+    for index in sorted(range(len(extensions)), key=lambda i: (extensions[i].price, extensions[i].start)):
+        if delivered_input + 1e-9 >= needed_input_kwh:
+            break
+        delivered_input += take(extensions, index, needed_input_kwh - delivered_input)
 
     selected = sorted(selected, key=lambda item: item.start)
 
@@ -124,4 +141,5 @@ def build_plan(
         deliverable_kwh=battery_kwh,
         estimated_cost=cost,
         complete=battery_kwh + 0.02 >= required_kwh,
+        extension_kwh=(delivered_input - preferred_input) * efficiency,
     )
