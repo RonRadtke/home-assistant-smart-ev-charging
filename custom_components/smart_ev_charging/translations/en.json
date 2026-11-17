@@ -61,7 +61,9 @@
           "night_end": "Night tariff ends",
           "fixed_energy_price": "Fixed energy price (-1 disables)",
           "support_threshold": "Support threshold per kWh",
-          "support_rate": "Support rate (0–1)"
+          "support_rate": "Support rate (0–1)",
+          "norgespris_mode": "Norgespris: charge in low-grid-fee hours",
+          "norgespris_fill": "Allow charging outside preferred hours to reach 100%"
         },
         "data_description": {
           "plugged_entity": "If omitted, the Zaptec operating mode is used.",
@@ -72,7 +74,9 @@
           "night_grid_fee": "Added during the configured night period.",
           "fixed_energy_price": "Use for a fixed-price scheme; -1 keeps spot pricing.",
           "support_threshold": "Threshold above which support applies.",
-          "support_rate": "Fraction above the threshold that is compensated."
+          "support_rate": "Fraction above the threshold that is compensated.",
+          "norgespris_mode": "Requires a non-negative fixed energy price; uses the configured night tariff hours.",
+          "norgespris_fill": "Uses preferred hours first; extends before or after those hours up to the departure deadline if necessary."
         }
       }
     }
@@ -115,6 +119,15 @@
           "starting": "Starting charging",
           "scheduled": "Scheduled"
         }
+      },
+      "norgespris_cost": {
+        "name": "Norgespris charging cost"
+      },
+      "spot_comparison_cost": {
+        "name": "Same charge at spot prices"
+      },
+      "norgespris_savings": {
+        "name": "Norgespris savings vs spot"
       }
     },
     "binary_sensor": {
