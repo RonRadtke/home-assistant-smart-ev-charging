@@ -28,6 +28,8 @@ CONF_NIGHT_GRID_FEE: Final = "night_grid_fee"
 CONF_NIGHT_START: Final = "night_start"
 CONF_NIGHT_END: Final = "night_end"
 CONF_FIXED_PRICE: Final = "fixed_energy_price"
+CONF_NORGESPRIS_MODE: Final = "norgespris_mode"
+CONF_NORGESPRIS_FILL: Final = "norgespris_fill"
 CONF_SUPPORT_THRESHOLD: Final = "support_threshold"
 CONF_SUPPORT_RATE: Final = "support_rate"
 
@@ -46,6 +48,8 @@ DEFAULTS: Final = {
     CONF_NIGHT_START: time(22, 0),
     CONF_NIGHT_END: time(6, 0),
     CONF_FIXED_PRICE: -1.0,
+    CONF_NORGESPRIS_MODE: False,
+    CONF_NORGESPRIS_FILL: False,
     CONF_SUPPORT_THRESHOLD: 0.0,
     CONF_SUPPORT_RATE: 0.0,
 }
