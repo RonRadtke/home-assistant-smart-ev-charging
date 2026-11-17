@@ -146,6 +146,33 @@ Set **Fixed energy price** to `-1` for spot pricing. A non-negative value replac
 
 Capacity-tariff optimization is intentionally not claimed in v0.1: it requires whole-home interval/phase load data and tariff-specific peak history. Electrical load balancing remains outside this integration.
 
+### Norgespris preferred-hours mode
+
+In **Configure**, set the **Fixed energy price** to your Norgespris rate in the
+same currency per kWh as the price sensor, then enable **Norgespris: charge in
+low-grid-fee hours**. Set **Night tariff starts/ends** to your grid operator's
+actual discounted hours (the defaults are 22:00–06:00). The fixed energy price
+applies **all day**; only the network tariff typically differs by time.
+
+- With **Allow charging outside preferred hours to reach 100%** disabled,
+  charge only during the configured discounted window, up to the normal target
+  SOC (or 100% when Trip mode is active). The plan can legitimately be
+  incomplete if there is insufficient preferred-window time.
+- With the extension enabled, use the discounted hours first, then charge
+  outside them as needed to reach **100% by departure**, if physically possible.
+  This setting deliberately overrides the normal target SOC; the vehicle's
+  own configured charging limit still applies.
+- **Charge now** continues to override the schedule.
+- **Norgespris charging cost**, **Same charge at spot prices**, and
+  **Norgespris savings vs spot** are separate sensors. Savings is calculated
+  using the *same planned hours and energy*, not a hypothetical differently
+  optimized spot-price schedule. Positive means Norgespris is cheaper and
+  negative means spot is cheaper. The spot comparison remains unavailable
+  when the forecast doesn't cover every planned charging interval.
+
+This comparison estimates energy and configured volumetric grid charges, not
+the full electricity bill, fixed monthly fees, or capacity-based grid charges.
+
 ## Safety and failure behavior
 
 - Missing or invalid SOC reports an incomplete plan and stops an observed optimized charging session. Explicit Charge now can still request charging without SOC.
