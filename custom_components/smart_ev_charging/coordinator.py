@@ -223,7 +223,7 @@ class SmartEVChargingCoordinator:
         fixed_price = float(self.option(CONF_FIXED_PRICE))
         norgespris = bool(self.option(CONF_NORGESPRIS_MODE))
         # Fetch spot prices for an honest cost comparison even on Norgespris.
-        spot_prices = await self._async_get_prices(now)
+        spot_prices = await self._async_get_prices(now) if norgespris else []
         prices = (
             parse_price_slots({}, now, fixed_price)
             if fixed_price >= 0 else spot_prices
