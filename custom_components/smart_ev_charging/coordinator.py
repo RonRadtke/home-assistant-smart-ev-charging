@@ -29,13 +29,13 @@ from .const import (
     CONF_DEPARTURE,
     CONF_EFFICIENCY,
     CONF_FIXED_PRICE,
-    CONF_NORGESPRIS_MODE,
-    CONF_NORGESPRIS_FILL,
     CONF_MARKUP,
     CONF_MINIMUM_SOC,
     CONF_NIGHT_END,
     CONF_NIGHT_GRID_FEE,
     CONF_NIGHT_START,
+    CONF_NORGESPRIS_FILL,
+    CONF_NORGESPRIS_MODE,
     CONF_PLUGGED_ENTITY,
     CONF_POWER_ENTITY,
     CONF_PRICE_ENTITY,
@@ -52,7 +52,7 @@ from .const import (
     STATE_REQUESTING,
 )
 from .models import ChargePlan, PriceSlot
-from .planner import build_plan, build_norgespris_plan
+from .planner import build_norgespris_plan, build_plan
 from .pricing import add_tariffs, parse_price_slots
 
 _LOGGER = logging.getLogger(__name__)
