@@ -26,6 +26,8 @@ from .const import (
     CONF_NIGHT_END,
     CONF_NIGHT_GRID_FEE,
     CONF_NIGHT_START,
+    CONF_NORGESPRIS_FILL,
+    CONF_NORGESPRIS_MODE,
     CONF_PLUGGED_ENTITY,
     CONF_POWER_ENTITY,
     CONF_PRICE_ENTITY,
@@ -138,6 +140,12 @@ class SmartEVChargingOptionsFlow(config_entries.OptionsFlow):
             ): selector.TimeSelector(),
             vol.Required(CONF_NIGHT_END, default=current.get(CONF_NIGHT_END, "06:00:00")): selector.TimeSelector(),
             vol.Required(CONF_FIXED_PRICE, default=current.get(CONF_FIXED_PRICE, -1)): _number(-1, 20, 0.001),
+            vol.Required(
+                CONF_NORGESPRIS_MODE, default=current.get(CONF_NORGESPRIS_MODE, False)
+            ): selector.BooleanSelector(),
+            vol.Required(
+                CONF_NORGESPRIS_FILL, default=current.get(CONF_NORGESPRIS_FILL, False)
+            ): selector.BooleanSelector(),
             vol.Required(CONF_SUPPORT_THRESHOLD, default=current.get(CONF_SUPPORT_THRESHOLD, 0)): _number(
                 0, 20, 0.001
             ),

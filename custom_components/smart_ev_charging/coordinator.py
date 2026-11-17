@@ -34,6 +34,8 @@ from .const import (
     CONF_NIGHT_END,
     CONF_NIGHT_GRID_FEE,
     CONF_NIGHT_START,
+    CONF_NORGESPRIS_FILL,
+    CONF_NORGESPRIS_MODE,
     CONF_PLUGGED_ENTITY,
     CONF_POWER_ENTITY,
     CONF_PRICE_ENTITY,
@@ -50,7 +52,7 @@ from .const import (
     STATE_REQUESTING,
 )
 from .models import ChargePlan, PriceSlot
-from .planner import build_plan
+from .planner import build_norgespris_plan, build_plan
 from .pricing import add_tariffs, parse_price_slots
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,6 +65,9 @@ class SmartEVChargingCoordinator:
         self.hass = hass
         self.entry = entry
         self.plan = ChargePlan()
+        self.spot_comparison_cost: float | None = None
+        self.norgespris_comparison_cost: float | None = None
+        self.comparison_savings: float | None = None
         self.enabled = True
         self.charge_now = False
         self.trip_mode = False
@@ -216,10 +221,16 @@ class SmartEVChargingCoordinator:
     async def _async_refresh_locked(self, now: datetime | None = None) -> None:
         now = dt_util.as_local(now or dt_util.now())
         fixed_price = float(self.option(CONF_FIXED_PRICE))
+        norgespris = bool(self.option(CONF_NORGESPRIS_MODE))
+        # Fetch spot prices for an honest cost comparison even on Norgespris.
+        spot_prices = await self._async_get_prices(now) if norgespris or fixed_price < 0 else []
         prices = (
             parse_price_slots({}, now, fixed_price)
-            if fixed_price >= 0 else await self._async_get_prices(now)
+            if fixed_price >= 0 else spot_prices
         )
+        if norgespris and fixed_price < 0:
+            # A fixed tariff must be configured to enable this mode.
+            prices = []
         # Network requests can yield while sensors change. Sample control inputs
         # afterwards so a queued unplug/SOC update cannot start a stale plan.
         self.soc = self._float_state(self.option(CONF_SOC_ENTITY))
@@ -262,7 +273,26 @@ class SmartEVChargingCoordinator:
             self.trip_mode = False
             target = self.target_soc
             await self._async_save_state()
-        self.plan = (
+        self.spot_comparison_cost = None
+        self.norgespris_comparison_cost = None
+        self.comparison_savings = None
+        if norgespris and self.soc is not None and fixed_price >= 0:
+            self.plan = build_norgespris_plan(
+                now=now,
+                deadline=self.deadline,
+                soc=self.soc,
+                target_soc=target,
+                battery_capacity_kwh=float(self.option(CONF_BATTERY_CAPACITY)),
+                charge_power_kw=self.effective_power_kw,
+                efficiency=float(self.option(CONF_EFFICIENCY)),
+                prices=prices,
+                night_start=self.time_option(CONF_NIGHT_START),
+                night_end=self.time_option(CONF_NIGHT_END),
+                timezone=now.tzinfo,
+                fill_outside_window=bool(self.option(CONF_NORGESPRIS_FILL)),
+            )
+        else:
+            self.plan = (
             build_plan(
                 now=now,
                 deadline=self.deadline,
@@ -276,7 +306,36 @@ class SmartEVChargingCoordinator:
             )
             if self.soc is not None
             else ChargePlan(complete=False)
-        )
+            )
+        # Compare the *same planned charging intervals* under both tariffs.
+        # Missing spot coverage is unknown, not zero cost or fabricated savings.
+        if norgespris and fixed_price >= 0 and self.plan.slots:
+            self.norgespris_comparison_cost = self.plan.estimated_cost
+            if spot_prices:
+                spot_tariffs = add_tariffs(
+                    spot_prices,
+                    markup=float(self.option(CONF_MARKUP)),
+                    day_fee=float(self.option(CONF_DAY_GRID_FEE)),
+                    night_fee=float(self.option(CONF_NIGHT_GRID_FEE)),
+                    night_start=self.time_option(CONF_NIGHT_START),
+                    night_end=self.time_option(CONF_NIGHT_END),
+                    fixed_price=-1,
+                    support_threshold=float(self.option(CONF_SUPPORT_THRESHOLD)),
+                    support_rate=float(self.option(CONF_SUPPORT_RATE)),
+                    timezone=now.tzinfo,
+                )
+                spot_cost = 0.0
+                covered_hours = 0.0
+                for planned in self.plan.slots:
+                    for spot in spot_tariffs:
+                        hours = max(0.0, (min(planned.end, spot.end) -
+                                          max(planned.start, spot.start)).total_seconds() / 3600)
+                        covered_hours += hours
+                        spot_cost += hours * self.effective_power_kw * spot.price
+                planned_hours = sum(slot.hours for slot in self.plan.slots)
+                if covered_hours + 1e-6 >= planned_hours:
+                    self.spot_comparison_cost = spot_cost
+                    self.comparison_savings = spot_cost - self.plan.estimated_cost
         desired = bool(self.enabled and self.plugged and (self.charge_now or self.plan.active(now)))
         self.should_charge = desired
         # Reconcile actual state even when the desired state has not changed.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta, tzinfo
 from math import isfinite
 
 from .models import ChargePlan, PriceSlot
@@ -124,4 +124,94 @@ def build_plan(
         deliverable_kwh=battery_kwh,
         estimated_cost=cost,
         complete=battery_kwh + 0.02 >= required_kwh,
+    )
+
+
+
+def build_norgespris_plan(
+    *,
+    now: datetime,
+    deadline: datetime,
+    soc: float,
+    target_soc: float,
+    battery_capacity_kwh: float,
+    charge_power_kw: float,
+    efficiency: float,
+    prices: list[PriceSlot],
+    night_start: time,
+    night_end: time,
+    timezone: tzinfo,
+    fill_outside_window: bool = False,
+) -> ChargePlan:
+    """Use configured discounted grid-tariff hours; optionally extend to full SOC.
+
+    Input price slots must be tariff-split by add_tariffs(). The separate fixed
+    price applies to all hours, not just the preferred window.
+    """
+    now_utc = now.astimezone(UTC)
+    end_utc = deadline.astimezone(UTC)
+    requested_soc = 100.0 if fill_outside_window else target_soc
+    required_kwh = max(0.0, requested_soc - soc) * battery_capacity_kwh / 100
+    if (
+        not all(isfinite(v) for v in (soc, requested_soc, battery_capacity_kwh, charge_power_kw, efficiency))
+        or not 0 <= soc <= 100
+        or not 0 <= requested_soc <= 100
+        or battery_capacity_kwh <= 0 or charge_power_kw <= 0
+        or not 0 < efficiency <= 1
+    ):
+        return ChargePlan(complete=False)
+    if required_kwh <= 0:
+        return ChargePlan()
+    if end_utc <= now_utc:
+        return ChargePlan(required_kwh=required_kwh, complete=False)
+
+    def preferred(instant: datetime) -> bool:
+        current = instant.astimezone(timezone).time().replace(tzinfo=None)
+        if night_start == night_end:
+            return True
+        if night_start < night_end:
+            return night_start <= current < night_end
+        return current >= night_start or current < night_end
+
+    candidates = []
+    for slot in sorted(prices, key=lambda value: (value.start, value.end)):
+        if not isfinite(slot.price):
+            continue
+        start = max(slot.start, now_utc, candidates[-1].end) if candidates else max(slot.start, now_utc)
+        end = min(slot.end, end_utc)
+        if start < end:
+            candidates.append(PriceSlot(start, end, slot.price))
+
+    preferred_slots = [slot for slot in candidates if preferred(slot.start)]
+    outside_slots = [slot for slot in candidates if not preferred(slot.start)]
+    # Favor the hours immediately adjoining the discounted period.
+    if preferred_slots:
+        outside_slots.sort(key=lambda slot: (
+            min(max(0.0, (p.start - slot.end).total_seconds(),
+                    (slot.start - p.end).total_seconds()) for p in preferred_slots),
+            slot.start,
+        ))
+    chosen = []
+    remaining_input = required_kwh / efficiency
+    for slot in preferred_slots + (outside_slots if fill_outside_window else []):
+        if remaining_input <= 1e-9:
+            break
+        take = min(remaining_input, slot.hours * charge_power_kw)
+        duration = timedelta(hours=take / charge_power_kw)
+        # For a partial slot immediately preceding the cheap window, finish
+        # exactly when the cheap window starts.
+        from_end = (
+            slot in outside_slots
+            and any(slot.end == preferred_slot.start for preferred_slot in preferred_slots)
+        )
+        start = slot.end - duration if from_end else slot.start
+        chosen.append(PriceSlot(start, start + duration, slot.price))
+        remaining_input -= take
+    delivered = sum(slot.hours * charge_power_kw * efficiency for slot in chosen)
+    return ChargePlan(
+        slots=merge_adjacent(chosen),
+        required_kwh=required_kwh,
+        deliverable_kwh=delivered,
+        estimated_cost=sum(slot.hours * charge_power_kw * slot.price for slot in chosen),
+        complete=delivered + 0.02 >= required_kwh,
     )

@@ -54,6 +54,24 @@ DESCRIPTIONS = (
         value_fn=lambda c: c.plan.estimated_cost,
     ),
     SmartSensorDescription(
+        key="norgespris_cost",
+        translation_key="norgespris_cost",
+        suggested_display_precision=2,
+        value_fn=lambda c: c.norgespris_comparison_cost,
+    ),
+    SmartSensorDescription(
+        key="spot_comparison_cost",
+        translation_key="spot_comparison_cost",
+        suggested_display_precision=2,
+        value_fn=lambda c: c.spot_comparison_cost,
+    ),
+    SmartSensorDescription(
+        key="norgespris_savings",
+        translation_key="norgespris_savings",
+        suggested_display_precision=2,
+        value_fn=lambda c: c.comparison_savings,
+    ),
+    SmartSensorDescription(
         key="status",
         translation_key="status",
         device_class=SensorDeviceClass.ENUM,
