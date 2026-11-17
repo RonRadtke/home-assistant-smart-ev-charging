@@ -8,7 +8,6 @@ import pytest
 from custom_components.smart_ev_charging.models import PriceSlot
 from custom_components.smart_ev_charging.planner import build_norgespris_plan
 
-
 ZONE = ZoneInfo("Europe/Oslo")
 
 
@@ -31,7 +30,10 @@ def test_strict_only_charges_at_night():
     result = plan(soc=50, target=80)
     assert result.complete
     assert result.required_kwh == 30
-    assert all(22 <= slot.start.astimezone(ZONE).hour or slot.start.astimezone(ZONE).hour < 6 for slot in result.slots)
+    assert all(
+        slot.start.astimezone(ZONE).hour >= 22 or slot.start.astimezone(ZONE).hour < 6
+        for slot in result.slots
+    )
     assert result.slots[0].start.astimezone(ZONE).hour == 22
 
 
