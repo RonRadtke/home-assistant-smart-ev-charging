@@ -24,11 +24,16 @@ class ChargeScheduleCalendar(SmartEVChargingEntity, CalendarEntity):
         super().__init__(coordinator, "schedule")
 
     def _events(self) -> list[CalendarEvent]:
+        summary = (
+            "Optimized EV charging"
+            if self.coordinator.enabled
+            else "Planned EV charging (smart charging is off, will not start)"
+        )
         return [
             CalendarEvent(
                 start=slot.start,
                 end=slot.end,
-                summary="Optimized EV charging",
+                summary=summary,
                 description=f"Effective price: {slot.price:.4f} per kWh",
                 uid=f"{self.coordinator.entry.entry_id}-{slot.start.isoformat()}",
             )

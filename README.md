@@ -81,6 +81,8 @@ Enable Native Authentication in Zaptec first. When charging should begin, the in
 
 It stops with **Stop charging** and does not use Zaptec's problematic deauthorize-and-stop operation.
 
+Authorizing a session is what starts charging on a Zaptec. Plug in and leave the session waiting in `connected_requesting`; the integration authorizes it when the plan starts. If you authorize by hand (app, RFID) while smart charging is on, a session outside the plan is stopped again within about a minute. Use **Charge now** when you want power immediately. While smart charging is off, a manual authorization charges until you stop it.
+
 ### Reference values for Ron's Enyaq
 
 | Setting | Value |
@@ -100,17 +102,17 @@ Units come from the sensor's unit attribute. Standby readings at or below 100 W,
 
 | Entity | Purpose |
 |---|---|
-| Optimization | Master enable/disable |
+| Smart charging | Lets the plan control the charger (entity ID `switch.*_optimization` is unchanged). Off: nothing is started or stopped; a repair warning appears while the car is connected |
 | Charge now | Ignore prices and charge while connected |
 | Trip mode | Set the effective target to 100% and finish near departure |
 | Target SOC | Runtime normal target |
 | Minimum SOC | Runtime immediate-charge threshold |
 | Departure | Runtime daily deadline |
 | Should charge | Current desired charger state |
-| Status | Ready, scheduled, starting, charging, not connected, missing SOC, disabled, error, or deadline unreachable |
+| Status | Ready, scheduled, starting, charging, not connected, missing SOC, off (charger not controlled), error, or deadline unreachable |
 | Required energy/time | Calculated remaining requirement |
 | Next start/end | Next planned charging window |
-| Estimated cost | Cost based on effective configured price |
+| Estimated cost | Cost based on effective configured price, in the price entity's currency |
 | Charging schedule | Calendar containing the planned windows |
 | Refresh plan | Immediate manual recalculation |
 
@@ -180,7 +182,7 @@ the full electricity bill, fixed monthly fees, or capacity-based grid charges.
 - With no known current price interval, optimized charging waits for a known interval, including below minimum SOC. Charge now is the explicit override for a price outage.
 - Charger service failures are logged and exposed in diagnostics/status. Repeated attempts for the same command have a two-minute cooldown, including failed attempts.
 - Commands are de-duplicated to avoid repeatedly pressing cloud-backed Zaptec buttons.
-- If the integration is disabled, it does not force the charger on or off.
+- If smart charging is off, it does not force the charger on or off. While the car is connected, a Home Assistant repair warning says so and turns smart charging back on in one step.
 - While enabled, it reconciles the actual charger state on startup, input changes, and every minute. Charging started externally outside the plan will be stopped.
 - Zaptec resume and authorization happen on separate state updates, allowing disable, unplug, or a changed target to cancel authorization.
 

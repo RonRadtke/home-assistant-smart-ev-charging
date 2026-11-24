@@ -28,7 +28,13 @@ async def test_setup_all_platforms_diagnostics_and_unload(hass, entry):
     assert all(not entity.should_poll for entity in entities)
     assert entry.runtime_data.coordinator._listeners
     diagnostics = await async_get_config_entry_diagnostics(hass, entry)
-    assert diagnostics["runtime"]["plan_complete"]
+    runtime = diagnostics["runtime"]
+    assert runtime["plan_complete"]
+    assert runtime["time_zone"] == "Europe/Oslo"
+    assert runtime["smart_charging"] is True
+    assert runtime["charge_now"] is False
+    assert runtime["status"] == "ready"
+    assert runtime["slots"] == []
     with patch.object(
         hass.config_entries, "async_unload_platforms", new_callable=AsyncMock, return_value=True
     ) as unload:

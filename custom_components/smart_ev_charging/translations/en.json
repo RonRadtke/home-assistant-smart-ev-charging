@@ -110,7 +110,7 @@
         "name": "Status",
         "state": {
           "error": "Error",
-          "disabled": "Disabled",
+          "disabled": "Off – charger not controlled",
           "not_connected": "Not connected",
           "charging": "Charging",
           "ready": "Ready",
@@ -137,7 +137,7 @@
     },
     "switch": {
       "optimization": {
-        "name": "Optimization"
+        "name": "Smart charging"
       },
       "charge_now": {
         "name": "Charge now"
@@ -167,6 +167,22 @@
     "calendar": {
       "schedule": {
         "name": "Charging schedule"
+      }
+    }
+  },
+  "issues": {
+    "smart_charging_off": {
+      "title": "Smart charging is off for {name}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Turn smart charging back on?",
+            "description": "Smart charging is switched off while the car is connected, so {name} is not controlling the charger.\n\n- Planned charging will **not** start, so the car may not be ready by departure.\n- Charging started by hand (charger app, RFID or authorizing the charger) is **not** stopped, even outside the planned or low-tariff hours.\n\nSelect **Submit** to turn smart charging on. The plan then controls the charger again: it starts and stops charging itself, and stops any session started outside the plan. To charge right away regardless of the plan, use the **Charge now** switch instead of authorizing the charger yourself.\n\nIf you switched it off on purpose, you can ignore this warning."
+          }
+        },
+        "abort": {
+          "not_loaded": "The integration is not loaded. Reload it and try again."
+        }
       }
     }
   }

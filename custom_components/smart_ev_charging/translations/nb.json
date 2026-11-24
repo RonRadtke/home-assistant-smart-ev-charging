@@ -21,7 +21,7 @@
         "name": "Status",
         "state": {
           "error": "Feil",
-          "disabled": "Deaktivert",
+          "disabled": "Av – laderen styres ikke",
           "not_connected": "Ikke tilkoblet",
           "missing_soc": "Batterinivå mangler",
           "starting": "Starter lading",
@@ -39,7 +39,7 @@
     },
     "switch": {
       "optimization": {
-        "name": "Optimalisering"
+        "name": "Smart lading"
       },
       "charge_now": {
         "name": "Lad nå"
@@ -69,6 +69,22 @@
     "calendar": {
       "schedule": {
         "name": "Ladeplan"
+      }
+    }
+  },
+  "issues": {
+    "smart_charging_off": {
+      "title": "Smart lading er slått av for {name}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Slå på smart lading igjen?",
+            "description": "Smart lading er slått av mens bilen er tilkoblet, så {name} styrer ikke laderen.\n\n- Planlagt lading starter **ikke**, så bilen er kanskje ikke klar ved avreise.\n- Lading som er startet manuelt (laderappen, RFID eller ved å autorisere laderen) blir **ikke** stoppet, heller ikke utenfor de planlagte timene eller lavtariff-timene.\n\nBekreft for å slå på smart lading. Da styrer planen laderen igjen: den starter og stopper ladingen selv og stopper lading som er startet utenfor planen. Vil du lade med en gang uansett plan, bruk bryteren **Lad nå** i stedet for å autorisere laderen selv.\n\nHar du slått den av med vilje, kan du ignorere denne advarselen."
+          }
+        },
+        "abort": {
+          "not_loaded": "Integrasjonen er ikke lastet. Last den inn på nytt og prøv igjen."
+        }
       }
     }
   }

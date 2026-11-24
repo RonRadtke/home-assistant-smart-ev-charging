@@ -11,6 +11,18 @@ Norgespris preferred-window charging (supervised testing):
   reported as unavailable, never an invented estimate.
 - Keep the existing price-optimized planning behavior when the mode is off.
 
+Clearer off state:
+
+- Rename the **Optimization** switch to **Smart charging** (entity IDs are
+  unchanged). Status now reads "Off – charger not controlled".
+- While smart charging is off and the car is connected, raise a repair
+  warning: planned charging will not start, and manually authorized
+  sessions are not stopped. The repair turns smart charging back on.
+- The charging calendar marks planned windows as not starting while off.
+- Cost sensors carry the price entity's currency and are rounded to cents.
+- Diagnostics include the switch states, the planned windows in local time
+  and Home Assistant's time zone.
+
 The normal charging target and the optional 100% fill behavior are
 distinct. Keep the vehicle's own battery charging limit configured.
 

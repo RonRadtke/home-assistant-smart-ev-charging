@@ -33,6 +33,8 @@ CONF_NORGESPRIS_FILL: Final = "norgespris_fill"
 CONF_SUPPORT_THRESHOLD: Final = "support_threshold"
 CONF_SUPPORT_RATE: Final = "support_rate"
 
+ISSUE_SMART_CHARGING_OFF: Final = "smart_charging_off"
+
 CHARGER_GENERIC: Final = "generic"
 CHARGER_ZAPTEC: Final = "zaptec"
 DEFAULTS: Final = {

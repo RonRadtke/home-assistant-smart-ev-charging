@@ -6,16 +6,33 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription
-from homeassistant.const import UnitOfEnergy, UnitOfTime
+from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT, UnitOfEnergy, UnitOfTime
+from homeassistant.generated.currencies import ACTIVE_CURRENCIES
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SmartEVChargingConfigEntry
+from .const import CONF_PRICE_ENTITY
 from .entity import SmartEVChargingEntity
 
 
 @dataclass(frozen=True, kw_only=True)
 class SmartSensorDescription(SensorEntityDescription):
     value_fn: Callable
+    monetary: bool = False
+
+
+def price_currency(coordinator) -> str | None:
+    """Currency of the price entity, e.g. NOK from NOK/kWh.
+
+    Subunits such as øre/kWh are not ISO currencies and yield None.
+    """
+    entity_id = coordinator.option(CONF_PRICE_ENTITY)
+    state = coordinator.hass.states.get(entity_id) if entity_id else None
+    unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) if state else None
+    if not isinstance(unit, str):
+        return None
+    currency = unit.split("/", 1)[0].strip().upper()
+    return currency if currency in ACTIVE_CURRENCIES else None
 
 
 DESCRIPTIONS = (
@@ -51,24 +68,28 @@ DESCRIPTIONS = (
         key="estimated_cost",
         translation_key="estimated_cost",
         suggested_display_precision=2,
+        monetary=True,
         value_fn=lambda c: c.plan.estimated_cost,
     ),
     SmartSensorDescription(
         key="norgespris_cost",
         translation_key="norgespris_cost",
         suggested_display_precision=2,
+        monetary=True,
         value_fn=lambda c: c.norgespris_comparison_cost,
     ),
     SmartSensorDescription(
         key="spot_comparison_cost",
         translation_key="spot_comparison_cost",
         suggested_display_precision=2,
+        monetary=True,
         value_fn=lambda c: c.spot_comparison_cost,
     ),
     SmartSensorDescription(
         key="norgespris_savings",
         translation_key="norgespris_savings",
         suggested_display_precision=2,
+        monetary=True,
         value_fn=lambda c: c.comparison_savings,
     ),
     SmartSensorDescription(
@@ -99,13 +120,32 @@ class SmartEVSensor(SmartEVChargingEntity, SensorEntity):
 
     @property
     def native_value(self):
-        return self.entity_description.value_fn(self.coordinator)
+        value = self.entity_description.value_fn(self.coordinator)
+        if self.entity_description.monetary and value is not None:
+            # Without a currency unit the frontend shows the raw float.
+            return round(value, 2)
+        return value
+
+    @property
+    def device_class(self) -> SensorDeviceClass | None:
+        if self.entity_description.monetary:
+            return SensorDeviceClass.MONETARY if price_currency(self.coordinator) else None
+        return super().device_class
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        if self.entity_description.monetary:
+            return price_currency(self.coordinator)
+        return super().native_unit_of_measurement
 
     @property
     def extra_state_attributes(self):
         if self.entity_description.key != "status":
             return None
         return {
+            "smart_charging": self.coordinator.enabled,
+            "charge_now": self.coordinator.charge_now,
+            "trip_mode": self.coordinator.trip_mode,
             "soc": self.coordinator.soc,
             "deadline": self.coordinator.deadline,
             "plan_complete": self.coordinator.plan.complete,

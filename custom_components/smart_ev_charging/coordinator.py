@@ -12,6 +12,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
@@ -47,6 +48,8 @@ from .const import (
     CONF_TARGET_SOC,
     DEFAULTS,
     DISCONNECTED_STATES,
+    DOMAIN,
+    ISSUE_SMART_CHARGING_OFF,
     STATE_CHARGING,
     STATE_FINISHED,
     STATE_REQUESTING,
@@ -89,6 +92,37 @@ class SmartEVChargingCoordinator:
         self._price_cache_at: datetime | None = None
         self._store: Store[dict[str, Any]] = Store(hass, 1, f"smart_ev_charging.{entry.entry_id}")
         self._was_plugged = False
+        self._off_issue_raised: bool | None = None
+
+    @property
+    def off_issue_id(self) -> str:
+        return f"{ISSUE_SMART_CHARGING_OFF}_{self.entry.entry_id}"
+
+    @callback
+    def _async_sync_off_issue(self) -> None:
+        """Warn while a plugged-in car is left without charger control.
+
+        Turned off, the integration neither starts the planned session nor stops
+        a session started by hand, RFID or the charger app. That is easy to miss
+        while the plan and calendar still show upcoming charging.
+        """
+        raise_issue = not self.enabled and self.plugged and not self._stopped
+        if raise_issue == self._off_issue_raised:
+            return
+        self._off_issue_raised = raise_issue
+        if raise_issue:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                self.off_issue_id,
+                data={"entry_id": self.entry.entry_id},
+                is_fixable=True,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=ISSUE_SMART_CHARGING_OFF,
+                translation_placeholders={"name": self.entry.title},
+            )
+        else:
+            ir.async_delete_issue(self.hass, DOMAIN, self.off_issue_id)
 
     def option(self, key: str) -> Any:
         return self.entry.options.get(key, self.entry.data.get(key, DEFAULTS.get(key)))
@@ -136,6 +170,8 @@ class SmartEVChargingCoordinator:
         for remove in self._listeners:
             remove()
         self._listeners.clear()
+        # An unloaded entry controls nothing, so its warning cannot be acted on.
+        self._async_sync_off_issue()
         # Drain an in-flight service call before unload completes.
         async with self._refresh_lock:
             pass
@@ -338,6 +374,7 @@ class SmartEVChargingCoordinator:
                     self.comparison_savings = spot_cost - self.plan.estimated_cost
         desired = bool(self.enabled and self.plugged and (self.charge_now or self.plan.active(now)))
         self.should_charge = desired
+        self._async_sync_off_issue()
         # Reconcile actual state even when the desired state has not changed.
         await self._async_apply_desired_state(dt_util.as_utc(now))
         self._notify()
